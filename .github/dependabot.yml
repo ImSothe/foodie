@@ -1,0 +1,8 @@
+# Opens a pull request when a GitHub Action pinned by commit hash has a new version
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
