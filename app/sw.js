@@ -34,6 +34,8 @@ const SHELL = [
 /* stamp:end */
 
 const CACHE = `foodie-${VERSION}`;
+const SHELL_URLS = new Set(SHELL.map((url) => new URL(url, self.location).href));
+const inShell = (url) => { const u = new URL(url); u.search = ''; u.hash = ''; return SHELL_URLS.has(u.href); };
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
@@ -43,6 +45,8 @@ self.addEventListener('install', (e) => {
   );
 });
 
+// GitHub Pages serves every project of the account from the same origin, so cache storage is shared
+// with other apps: only caches named "foodie-…" are ours to delete.
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys()
@@ -54,19 +58,21 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
-  e.respondWith(
-    caches.open(CACHE).then(async (cache) => {
-      const hit = await cache.match(req, { ignoreSearch: true });
-      if (hit) return hit;
-      try {
-        return await fetch(req);
-      } catch (err) {
-        if (req.mode === 'navigate') {
-          const shell = await cache.match('./index.html');
-          if (shell) return shell;
-        }
-        throw err;
+  e.respondWith((async () => {
+    const cache = await caches.open(CACHE);
+    const hit = await cache.match(req, { ignoreSearch: true });
+    if (hit) return hit;
+    try {
+      const res = await fetch(req);
+      // If another app on this origin wiped our cache, put the file back so offline keeps working.
+      if (res.ok && inShell(req.url)) e.waitUntil(cache.put(req, res.clone()));
+      return res;
+    } catch (err) {
+      if (req.mode === 'navigate') {
+        const shell = await cache.match('./index.html');
+        if (shell) return shell;
       }
-    }),
-  );
+      throw err;
+    }
+  })());
 });

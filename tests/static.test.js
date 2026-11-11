@@ -78,6 +78,14 @@ test('service worker: the cached file list and version match the app (run `npm r
   for (const needed of ['./index.html', './main.js', './boot.js', './css/tokens.css', './manifest.webmanifest']) assert.ok(shell.includes(needed), needed);
 });
 
+test('service worker: only deletes its own caches (the origin is shared with other GitHub Pages apps)', () => {
+  const sw = read('app/sw.js');
+  const deletions = [...sw.matchAll(/caches\.delete\(/g)].length;
+  assert.equal(deletions, 1);
+  assert.ok(/filter\(\(k\) => k\.startsWith\('foodie-'\) && k !== CACHE\)/.test(sw), 'cache cleanup must be limited to the foodie- prefix');
+  assert.ok(/origin !== self\.location\.origin\) return/.test(sw), 'requests to other origins must not be intercepted');
+});
+
 test('workflows: least privilege and every action pinned to a full commit hash', () => {
   const dir = join(ROOT, '.github', 'workflows');
   for (const f of readdirSync(dir)) {
