@@ -1,0 +1,50 @@
+<!doctype html>
+<!-- Source of the app icon. tools/make_icons.py opens this page in headless Chrome and saves the PNG
+     that the page leaves in <body data-png>.   ?size=192  output size in px   ?pad=1  maskable safe zone -->
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @font-face { font-family: "Bricolage"; src: url("../app/fonts/bricolage-grotesque-latin-wght.woff2") format("woff2"); font-weight: 200 800; }
+  body { margin: 0; background: #0A0A0C; font-family: "Bricolage"; font-weight: 800; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+  (async function () {
+    const q = new URLSearchParams(location.search);
+    const size = Number(q.get('size')) || 512;
+    const k = size / 512;
+    const c = document.getElementById('c');
+    c.width = c.height = size;
+    const x = c.getContext('2d');
+    await document.fonts.load('800 250px "Bricolage"');
+
+    x.fillStyle = '#0A0A0C';
+    x.fillRect(0, 0, size, size);
+    x.translate(size / 2, size / 2);
+    x.scale(k, k);
+    if (q.has('pad')) x.scale(0.78, 0.78);
+
+    // the ring of the day, split into the three macros
+    const TAU = Math.PI * 2, arc = TAU * (266 / 1056), gap = TAU / 3, start = -Math.PI / 2 + TAU * (43 / 1056);
+    x.lineWidth = 44;
+    x.lineCap = 'round';
+    ['#FF6B6B', '#F5B83D', '#7AA2FF'].forEach((color, i) => {
+      x.strokeStyle = color;
+      x.beginPath();
+      x.arc(0, 0, 168, start + i * gap, start + i * gap + arc);
+      x.stroke();
+    });
+
+    x.fillStyle = '#F6F5F2';
+    x.font = '800 250px "Bricolage"';
+    x.textAlign = 'center';
+    x.fillText('f', 0, 80);
+
+    document.body.dataset.png = c.toDataURL('image/png');
+  })();
+</script>
+</body>
+</html>

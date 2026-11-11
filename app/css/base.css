@@ -1,0 +1,99 @@
+/* foodie · base: reset, page frame, type scale */
+
+*, *::before, *::after { box-sizing: border-box; }
+* { -webkit-tap-highlight-color: transparent; }
+[hidden] { display: none !important; }
+
+html {
+  background: var(--bg);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--ink);
+  font: 400 16px/1.4 var(--font-body);
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, p, ul, ol, figure { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { background: none; border: 0; padding: 0; cursor: pointer; }
+a { color: inherit; }
+svg { display: block; }
+img { display: block; max-width: 100%; }
+
+:focus { outline: none; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-radius: 8px; }
+
+/* The app is a single phone-width column, also on a desktop browser. */
+.frame {
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+#top {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  padding-top: var(--safe-t);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  backdrop-filter: blur(16px) saturate(1.4);
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--t-fast);
+}
+#top.scrolled { border-bottom-color: var(--line); }
+#top .frame {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 56px;
+  padding: 0 var(--gutter);
+}
+
+#view {
+  padding: 6px var(--gutter) calc(var(--tabbar-h) + var(--safe-b) + 56px);
+}
+#view > * + * { margin-top: 14px; }
+
+/* type scale (display face for numbers and titles, system face for reading) */
+.wordmark {
+  font: 800 26px/1 var(--font-display);
+  letter-spacing: -.045em;
+}
+.title {
+  font: 700 30px/1.1 var(--font-display);
+  letter-spacing: -.035em;
+}
+.title::first-letter { text-transform: uppercase; }
+.section-title {
+  font: 700 19px/1.2 var(--font-display);
+  letter-spacing: -.02em;
+}
+.num {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.02em;
+}
+.unit { font-size: .62em; font-weight: 600; letter-spacing: 0; }
+.muted { color: var(--ink-2); }
+.small { font-size: 13px; line-height: 1.35; }
+
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  margin: -1px; padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}

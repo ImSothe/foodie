@@ -1,0 +1,93 @@
+/* foodie · design tokens. boot.js always sets data-theme="light" or "dark" before the first paint. */
+
+@font-face {
+  font-family: "Bricolage";
+  src: url("../fonts/bricolage-grotesque-latin-wght.woff2") format("woff2");
+  font-weight: 200 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  color-scheme: light;
+
+  /* surfaces */
+  --bg: #F3F3F5;
+  --card: #FFFFFF;
+  --inset: #F3F3F5;
+  --glass: rgba(255, 255, 255, .74);
+  --scrim: rgba(10, 10, 12, .38);
+
+  /* ink */
+  --ink: #0A0A0C;
+  --ink-2: #55555E;
+  --ink-3: #8D8D96;
+  --on-ink: #FFFFFF;
+  --line: rgba(10, 10, 12, .08);
+  --track: rgba(10, 10, 12, .09);
+
+  /* the three macros, named after food: salmon, saffron, blueberry */
+  --protein: #E0454B;
+  --carbs: #C98A0B;
+  --fat: #3B6FE0;
+
+  /* state */
+  --ok: #1B9A5E;
+  --warn: #C96A0A;
+  --bad: #D43C3C;
+
+  --shadow-card: 0 1px 2px rgba(10, 10, 12, .04), 0 10px 28px rgba(10, 10, 12, .05);
+  --shadow-float: 0 6px 16px rgba(10, 10, 12, .18), 0 18px 40px rgba(10, 10, 12, .16);
+
+  /* shape: bigger surfaces get bigger corners */
+  --r-xl: 30px;
+  --r-lg: 24px;
+  --r-md: 18px;
+  --r-sm: 12px;
+  --r-pill: 999px;
+
+  /* type */
+  --font-display: "Bricolage", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-body: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+
+  /* space and motion */
+  --gutter: 18px;
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --tabbar-h: 64px;
+  --ease: cubic-bezier(.2, .8, .2, 1);
+  --t-fast: .16s;
+  --t-ring: .7s;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #0A0A0C;
+  --card: #141418;
+  --inset: #1C1C22;
+  --glass: rgba(20, 20, 24, .72);
+  --scrim: rgba(0, 0, 0, .58);
+
+  --ink: #F6F5F2;
+  --ink-2: #A4A4AE;
+  --ink-3: #6C6C76;
+  --on-ink: #0A0A0C;
+  --line: rgba(255, 255, 255, .07);
+  --track: rgba(255, 255, 255, .09);
+
+  --protein: #FF6B6B;
+  --carbs: #F5B83D;
+  --fat: #7AA2FF;
+
+  --ok: #3DD68C;
+  --warn: #F59A3D;
+  --bad: #FF6464;
+
+  --shadow-card: none;
+  --shadow-float: 0 8px 22px rgba(0, 0, 0, .5), 0 20px 44px rgba(0, 0, 0, .4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --t-fast: 0s; --t-ring: 0s; }
+}
