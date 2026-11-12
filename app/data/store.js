@@ -3,19 +3,19 @@
    later without touching the screens.
 
    Keys (the origin is shared with other apps, so they all start with "fd."):
-   fd.profile  fd.goals  fd.days  fd.saved  fd.weights
+   fd.profile  fd.goals  fd.days  fd.saved  fd.weights  fd.sync (edit stamps and what changed since the last cloud sync)
    Whatever is read back is validated by core/schema.js: stored data is never trusted blindly. A stored value
    larger than MAX_STORED_CHARS is not even parsed. */
 import { isIso } from '../core/dates.js';
 import { cleanProfile, computePlan, toGoals } from '../core/goals.js';
 import {
   cleanMeal, cleanDays, cleanGoalsHistory, cleanSaved, cleanWeights, cleanGoals, goalsFor as goalsInForce, setGoalsEntry,
-  emptyDay, isEmptyDay, loggedDays as loggedDaysOf, mealsOfDay, clampWater, clampSteps, isId, nullMap,
+  emptyDay, isEmptyDay, loggedDays as loggedDaysOf, mealsOfDay, clampWater, clampSteps, isId, nullMap, cleanSyncMeta, emptySyncMeta,
   TIME, MAX_MEALS_PER_DAY, MAX_DAYS, MAX_SAVED,
 } from '../core/schema.js';
 
 export const STORAGE_KEYS = {
-  profile: 'fd.profile', goals: 'fd.goals', days: 'fd.days', saved: 'fd.saved', weights: 'fd.weights',
+  profile: 'fd.profile', goals: 'fd.goals', days: 'fd.days', saved: 'fd.saved', weights: 'fd.weights', sync: 'fd.sync',
 };
 const KEY_NAMES = new Set(Object.values(STORAGE_KEYS));
 
@@ -86,6 +86,7 @@ export function createStore(storage, env = {}) {
       days: cleanDays(read(STORAGE_KEYS.days)),
       saved: cleanSaved(read(STORAGE_KEYS.saved)),
       weights: cleanWeights(read(STORAGE_KEYS.weights)),
+      sync: cleanSyncMeta(read(STORAGE_KEYS.sync)),
     };
   }
 
@@ -118,6 +119,12 @@ export function createStore(storage, env = {}) {
     return !!state.days[iso];
   }
 
+  let lastStamp = 0;
+  /** Milliseconds of the edit; strictly increasing, so two edits in the same millisecond still have an order. */
+  const stamp = () => { lastStamp = Math.max(now().getTime(), lastStamp + 1); return lastStamp; };
+  /** Remember that a day changed since the last cloud sync (the cloud code reads and clears this). */
+  const markDay = (iso, at) => { state.sync.dirty.days[iso] = { m: nullMap(), d: nullMap(), w: at, s: 0 }; };
+
   state = load();
 
   return {
@@ -142,7 +149,8 @@ export function createStore(storage, env = {}) {
       const profile = cleanProfile(raw);
       if (!profile) return null;
       state.profile = profile;
-      commit('profile');
+      state.sync.profileAt = stamp();
+      commit('profile', 'sync');
       return profile;
     },
     /** Goals taking effect on `from` (default today); earlier days keep the goals they had. */
@@ -150,7 +158,7 @@ export function createStore(storage, env = {}) {
       const goals = cleanGoals(raw);
       if (!goals) return null;
       const next = setGoalsEntry(state.goals, from, goals);
-      if (next !== state.goals) { state.goals = next; commit('goals'); }
+      if (next !== state.goals) { state.goals = next; state.sync.goalsAt[from] = stamp(); commit('goals', 'sync'); }
       return goals;
     },
 
@@ -166,13 +174,19 @@ export function createStore(storage, env = {}) {
       const clean = cleanMeal(meal, {
         id: rawId === undefined || rawId === null || rawId === '' ? uuid() : rawId,
         time: typeof rawTime === 'string' && TIME.test(rawTime) ? rawTime : hhmm(now()),
+        updatedAt: stamp(),
       });
       if (!clean) return null;
       const day = dayOf(iso);
       if (!(clean.id in day.meals) && Object.keys(day.meals).length >= MAX_MEALS_PER_DAY) return null;
       day.meals[clean.id] = clean;
+      if (day.deleted && clean.id in day.deleted) {                                // an undo: the meal is alive again
+        delete day.deleted[clean.id];
+        if (!Object.keys(day.deleted).length) delete day.deleted;
+      }
       if (!putDay(iso, day)) return null;
-      commit('days');
+      markDay(iso, clean.updatedAt);
+      commit('days', 'sync');
       return clean;
     },
     /** Replaces an existing meal. `silent` saves without telling subscribers (used while a slider is moving). */
@@ -180,10 +194,11 @@ export function createStore(storage, env = {}) {
       const day = isIso(iso) ? state.days[iso] : undefined;
       const id = peek(meal, 'id');
       if (!day || !isId(id) || !(id in day.meals)) return null;
-      const clean = cleanMeal(meal);
+      const clean = cleanMeal(meal, { updatedAt: stamp() });
       if (!clean) return null;
       day.meals[clean.id] = clean;
-      if (silent) write('days'); else commit('days');
+      markDay(iso, clean.updatedAt);
+      if (silent) { write('days'); write('sync'); } else commit('days', 'sync');
       return clean;
     },
     /** Removes a meal and returns it (pass it to addMeal to undo). */
@@ -192,20 +207,25 @@ export function createStore(storage, env = {}) {
       if (!day || !isId(id) || !(id in day.meals)) return null;
       const meal = day.meals[id];
       delete day.meals[id];
+      const at = stamp();
+      day.deleted = day.deleted || nullMap();
+      day.deleted[id] = at;                       // the deletion travels to the other devices as a tombstone
       putDay(iso, day);
-      commit('days');
+      markDay(iso, at);
+      commit('days', 'sync');
       return meal;
     },
     duplicateMeal(fromIso, id, toIso) {
       const from = isIso(fromIso) ? state.days[fromIso] : undefined;
       if (!from || !isId(id) || !(id in from.meals) || !isIso(toIso)) return null;
-      const copy = cleanMeal(from.meals[id], { id: uuid() });
+      const copy = cleanMeal(from.meals[id], { id: uuid(), updatedAt: stamp() });
       if (!copy) return null;
       const day = dayOf(toIso);
       if (Object.keys(day.meals).length >= MAX_MEALS_PER_DAY) return null;
       day.meals[copy.id] = copy;
       if (!putDay(toIso, day)) return null;
-      commit('days');
+      markDay(toIso, copy.updatedAt);
+      commit('days', 'sync');
       return copy;
     },
 
@@ -215,24 +235,30 @@ export function createStore(storage, env = {}) {
       if (!isIso(iso)) return null;
       const day = dayOf(iso);
       day.waterMl = clampWater(day.waterMl + clampWaterDelta(ml));
+      day.waterAt = stamp();
       putDay(iso, day);
-      commit('days');
+      markDay(iso, day.waterAt);
+      commit('days', 'sync');
       return day.waterMl;
     },
     setWater(iso, ml) {
       if (!isIso(iso)) return null;
       const day = dayOf(iso);
       day.waterMl = clampWater(ml);
+      day.waterAt = stamp();
       putDay(iso, day);
-      commit('days');
+      markDay(iso, day.waterAt);
+      commit('days', 'sync');
       return day.waterMl;
     },
     setSteps(iso, n) {
       if (!isIso(iso)) return null;
       const day = dayOf(iso);
       day.steps = clampSteps(n);
+      day.stepsAt = stamp();
       putDay(iso, day);
-      commit('days');
+      markDay(iso, day.stepsAt);
+      commit('days', 'sync');
       return day.steps;
     },
 
@@ -243,14 +269,15 @@ export function createStore(storage, env = {}) {
      */
     saveMeal(meal, { keepId = false } = {}) {
       const rawId = peek(meal, 'id');
-      const clean = cleanMeal(meal, { id: keepId && isId(rawId) ? rawId : uuid() });
+      const clean = cleanMeal(meal, { id: keepId && isId(rawId) ? rawId : uuid(), updatedAt: stamp() });
       if (!clean) return null;
       const key = (m) => JSON.stringify([m.name, m.items.map((it) => [it.name, it.grams])]);
       const twin = state.saved.find((s) => key(s) === key(clean));
       if (twin) return { meal: twin, added: false };
       if (state.saved.length >= MAX_SAVED) return { meal: null, added: false, full: true };
       state.saved = [clean, ...state.saved];
-      commit('saved');
+      delete state.sync.savedDeleted[clean.id];                // an undo: the favourite is alive again
+      commit('saved', 'sync');
       return { meal: clean, added: true };
     },
     /** Removes a favourite and returns it (pass it to saveMeal with keepId to undo). */
@@ -259,7 +286,8 @@ export function createStore(storage, env = {}) {
       const meal = state.saved.find((m) => m.id === id);
       if (!meal) return null;
       state.saved = state.saved.filter((m) => m.id !== id);
-      commit('saved');
+      state.sync.savedDeleted[id] = stamp();
+      commit('saved', 'sync');
       return meal;
     },
 
@@ -272,10 +300,11 @@ export function createStore(storage, env = {}) {
       const weights = cleanWeights(next);
       if (weights[iso] === undefined) return null;
       state.weights = weights;
-      const names = ['weights'];
+      state.sync.weightsAt[iso] = stamp();
+      const names = ['weights', 'sync'];
       if (state.profile && Object.keys(weights).every((d) => d <= iso)) {
         const updated = cleanProfile({ ...state.profile, weightKg: weights[iso] });
-        if (updated) { state.profile = updated; names.push('profile'); }
+        if (updated) { state.profile = updated; state.sync.profileAt = stamp(); names.push('profile'); }
       }
       commit(...names);
       return weights[iso];
@@ -293,7 +322,40 @@ export function createStore(storage, env = {}) {
       for (const k of KEY_NAMES) {
         try { storage.removeItem(k); } catch (e) { report(problem('write', k, e)); } // still stored: the data may come back on reload
       }
-      state = { profile: null, goals: [], days: nullMap(), saved: [], weights: nullMap() };
+      state = { profile: null, goals: [], days: nullMap(), saved: [], weights: nullMap(), sync: emptySyncMeta() };
+      notify();
+    },
+    // ---- cloud sync (see app/data/cloud.js and app/core/merge.js) ----
+    /** Everything the merge needs, in the shape of core/merge.js (read-only for callers). */
+    getSyncState: () => ({
+      profile: state.profile, profileAt: state.sync.profileAt, goals: state.goals, goalsAt: state.sync.goalsAt, days: state.days,
+      saved: state.saved, savedDeleted: state.sync.savedDeleted, weights: state.weights, weightsAt: state.sync.weightsAt,
+    }),
+    /** Days changed since the last successful sync, as { iso: stamp }. */
+    dirtyDays: () => Object.fromEntries(Object.entries(state.sync.dirty.days).map(([iso, m]) => [iso, m.w])),
+    /** After a push: forget the changes that were sent (`sent` = the { iso: stamp } map that was read before pushing). */
+    clearDirty(sent) {
+      for (const [iso, at] of Object.entries(sent || {})) { const m = state.sync.dirty.days[iso]; if (m && m.w <= at) delete state.sync.dirty.days[iso]; }
+      write('sync');
+    },
+    getSyncInfo: () => ({ uid: state.sync.uid, lastPull: state.sync.lastPull }),
+    setSyncInfo(info) {
+      const uid = info && typeof info.uid === 'string' ? info.uid : null;
+      state.sync.uid = uid;
+      state.sync.lastPull = uid && Number.isFinite(info.lastPull) ? Math.max(0, Math.floor(info.lastPull)) : 0;
+      write('sync');
+    },
+    /** Replace local data with a merged state (already merged by core/merge.js); everything goes through the cleaners again. */
+    applySyncState(m) {
+      state.profile = cleanProfile(m.profile);
+      state.goals = cleanGoalsHistory(m.goals);
+      state.days = cleanDays(m.days);
+      state.saved = cleanSaved(m.saved);
+      state.weights = cleanWeights(m.weights);
+      state.sync = cleanSyncMeta({
+        ...state.sync, profileAt: m.profileAt, goalsAt: m.goalsAt, weightsAt: m.weightsAt, savedDeleted: m.savedDeleted,
+      });
+      for (const n of ['profile', 'goals', 'days', 'saved', 'weights', 'sync']) write(n);
       notify();
     },
     /** Read everything from storage again (another tab changed it). */

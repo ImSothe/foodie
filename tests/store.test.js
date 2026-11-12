@@ -126,15 +126,17 @@ test('updateMeal replaces an existing meal only, silent skips notifications', ()
   assert.equal(s.mealsOf(DAY)[0].items[0].grams, 300);
 });
 
-test('deleteMeal returns the meal so it can be restored; an emptied day disappears', () => {
+test('deleteMeal returns the meal so it can be restored; the day keeps a tombstone so the deletion syncs', () => {
   const s = createStore(memory(), env);
   const m = s.addMeal(DAY, newMeal());
   const removed = s.deleteMeal(DAY, m.id);
   assert.equal(removed.id, m.id);
-  assert.deepEqual(plain(s.getDays()), {});
+  assert.deepEqual(s.mealsOf(DAY), []);
+  assert.deepEqual(Object.keys(s.getDay(DAY).deleted), [m.id]);         // the deletion has to travel to the other devices
   assert.equal(s.deleteMeal(DAY, m.id), null);
-  s.addMeal(DAY, removed);
+  s.addMeal(DAY, removed);                                                // undo: alive again, tombstone gone
   assert.equal(s.mealsOf(DAY)[0].id, m.id);
+  assert.equal(s.getDay(DAY).deleted, undefined);
 });
 
 test('duplicateMeal copies to another day with a new id and without sharing items', () => {
@@ -155,7 +157,8 @@ test('water: add, undo with a negative amount, never below zero, correct to an e
   assert.equal(s.addWater(DAY, 500), 750);
   assert.equal(s.addWater(DAY, -500), 250);
   assert.equal(s.addWater(DAY, -1000), 0);
-  assert.deepEqual(plain(s.getDays()), {});                      // zero water on an otherwise empty day leaves no trace
+  assert.equal(s.getDay(DAY).waterMl, 0);
+  assert.ok(s.getDay(DAY).waterAt > 0, 'zero is an edit too: it keeps its stamp, or an older value in the cloud would come back');
   assert.equal(s.setWater(DAY, 1800), 1800);
   assert.equal(s.setWater(DAY, 'abc'), 0);
   assert.equal(s.addWater('x', 250), null);
@@ -235,7 +238,7 @@ test('a failing storage keeps working in memory and reports the error', () => {
   s.addWater(DAY, 250);
   assert.equal(s.getDay(DAY).waterMl, 250);
   assert.equal(s.persistent, false);
-  assert.equal(errors, 1);
+  assert.ok(errors >= 1, 'the failed write is reported');
 });
 
 test('reload picks up changes made by another tab', () => {
@@ -249,4 +252,69 @@ test('reload picks up changes made by another tab', () => {
   b.reload();
   assert.equal(b.getDay(DAY).waterMl, 500);
   assert.equal(calls, 1);
+});
+
+// ---- cloud sync support: edit stamps, tombstones, changed days, applying a merged state ----
+
+test('every edit is stamped, and stamps strictly increase even within one millisecond', () => {
+  const s = createStore(memory(), env);
+  const a = s.addMeal(DAY, newMeal());
+  const b = s.addMeal(DAY, newMeal());
+  assert.ok(a.updatedAt > 0 && b.updatedAt > a.updatedAt);
+  s.setWater(DAY, 500);
+  s.setSteps(DAY, 900);
+  const day = s.getDay(DAY);
+  assert.ok(day.waterAt > b.updatedAt && day.stepsAt > day.waterAt);
+  const edited = s.updateMeal(DAY, { ...a, name: 'Otra' });
+  assert.ok(edited.updatedAt > day.stepsAt, 'an edit gets a new stamp');
+});
+
+test('changed days are remembered until a sync clears them', () => {
+  const s = createStore(memory(), env);
+  s.addMeal(DAY, newMeal());
+  s.setWater('2026-11-13', 250);
+  const dirty = s.dirtyDays();
+  assert.deepEqual(Object.keys(dirty).sort(), [DAY, '2026-11-13']);
+  s.setWater(DAY, 100);                                  // edited again after "sending": must stay dirty
+  s.clearDirty(dirty);
+  assert.deepEqual(Object.keys(s.dirtyDays()), [DAY]);
+});
+
+test('sync bookkeeping survives a reload and is cleared with the data', () => {
+  const st = memory();
+  const a = createStore(st, env);
+  const m = a.addMeal(DAY, newMeal());
+  a.deleteMeal(DAY, m.id);
+  const fav = a.saveMeal(newMeal()).meal;
+  a.removeSaved(fav.id);
+  a.setSyncInfo({ uid: 'user1', lastPull: 12345 });
+  const b = createStore(st, env);
+  assert.deepEqual(b.getSyncInfo(), { uid: 'user1', lastPull: 12345 });
+  assert.ok(b.getSyncState().savedDeleted[fav.id] > 0);
+  assert.ok(b.getDay(DAY).deleted[m.id] > 0);
+  assert.deepEqual(Object.keys(b.dirtyDays()), [DAY]);
+  b.clearAll();
+  assert.deepEqual(b.getSyncInfo(), { uid: null, lastPull: 0 });
+  assert.deepEqual(b.dirtyDays(), {});
+});
+
+test('applySyncState replaces the data with a merged state, cleans it and tells subscribers once', () => {
+  const s = createStore(memory(), env);
+  let calls = 0;
+  s.subscribe(() => { calls += 1; });
+  const merged = { ...s.getSyncState(), days: { [DAY]: { meals: { 'a-1': { ...newMeal(), id: 'a-1', updatedAt: 5 }, '__proto__': { id: '__proto__' } }, waterMl: 300, steps: 0 } } };
+  s.applySyncState(JSON.parse(JSON.stringify(merged)));
+  assert.equal(calls, 1);
+  assert.deepEqual(s.mealsOf(DAY).map((m) => m.id), ['a-1']);
+  assert.equal(s.getDay(DAY).waterMl, 300);
+  assert.equal(({}).polluted, undefined);
+});
+
+test('a favourite removed and saved again is alive again (no tombstone left)', () => {
+  const s = createStore(memory(), env);
+  const fav = s.saveMeal(newMeal()).meal;
+  const gone = s.removeSaved(fav.id);
+  assert.ok(s.getSyncState().savedDeleted[fav.id] > 0);
+  s.saveMeal(gone, { keepId: true });
+  assert.equal(s.getSyncState().savedDeleted[fav.id], undefined);
 });

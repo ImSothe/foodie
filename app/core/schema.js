@@ -188,7 +188,7 @@ export function cleanTombstones(raw) {
   return out;
 }
 
-export const isEmptyDay = (day) => !day || (!Object.keys(day.meals).length && !day.waterMl && !day.steps && !(day.deleted && Object.keys(day.deleted).length));
+export const isEmptyDay = (day) => !day || (!Object.keys(day.meals).length && !day.waterMl && !day.steps && !day.waterAt && !day.stepsAt && !(day.deleted && Object.keys(day.deleted).length));
 
 /** Every valid day of a stored map; empty days and invalid dates are dropped, and only the newest MAX_DAYS are kept. */
 export const cleanDays = guard((raw) => {

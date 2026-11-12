@@ -64,7 +64,7 @@ export function itemProblem(it) {
 
 export function mealProblem(m) {
   if (!isPlain(m)) return 'meal is not an object';
-  const extra = onlyKeys(m, ['id', 'name', 'slot', 'time', 'source', 'confidence', 'items']);
+  const extra = onlyKeys(m, ['id', 'name', 'slot', 'time', 'source', 'confidence', 'updatedAt', 'items']);
   if (extra.length) return `meal has unknown keys ${extra}`;
   if (!SLOTS.includes(m.slot) || !SOURCES.includes(m.source)) return 'meal slot or source not allowed';
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(m.time)) return `meal.time = ${m.time}`;
@@ -75,7 +75,9 @@ export function mealProblem(m) {
 
 export function dayProblem(d) {
   if (!isPlain(d)) return 'day is not an object';
-  if (Object.keys(d).join() !== 'meals,waterMl,steps') return `day keys ${Object.keys(d)}`;
+  // Edit stamps (waterAt, stepsAt) and tombstones (deleted) are what cloud sync merges on; they exist only when set.
+  const dayKeys = Object.keys(d);
+  if (dayKeys.slice(0, 3).join() !== 'meals,waterMl,steps' || onlyKeys(d, ['meals', 'waterMl', 'steps', 'waterAt', 'stepsAt', 'deleted']).length) return `day keys ${dayKeys}`;
   if (Object.getPrototypeOf(d.meals) !== null) return 'day.meals has a prototype';
   const ids = Object.keys(d.meals);
   if (ids.length > MAX_MEALS_PER_DAY) return 'too many meals in a day';
