@@ -44,7 +44,7 @@ That one rule shaped the rest:
 |---|---|---|
 | No framework, no build step, no runtime dependencies | The app is a handful of screens. Plain ES modules are served as written, there is no supply chain to audit, and the Content Security Policy can stay at `script-src 'self'`. | More hand-written UI code, and a small tool (`npm run stamp`) to version the offline cache. |
 | The DOM is built with `createElement` and text nodes, never from HTML strings | Text from a food database or an AI must never be able to run as code. This makes that a property of the code, not a matter of remembering to escape. | A slightly more verbose way to write screens. |
-| Local-first: the app works fully without an account | It opens instantly, works offline, and sign-in becomes a backup feature instead of a gate. | Sync has to be designed around conflicts later (meals are keyed by id for that reason). |
+| Local-first: the app works fully without an account | It opens instantly, works offline, and sign-in becomes a backup feature instead of a gate. | Sync has to resolve conflicts: every record carries its edit time, deletions travel as tombstones, and merging is tested to give the same result in any order. |
 | Carbohydrate means available carbohydrate, fibre counted apart | It is what EU labels and Open Food Facts use. Mixing it with the US "total carbohydrate" definition would silently double-count fibre. | US-sourced values are converted on import, and the energy check uses the EU factors (fibre at 2 kcal/g). |
 | Food values come from USDA FoodData Central, not written by hand | The first table was typed from memory and passed every test, because the tests only checked internal consistency. I then compared it with the Spanish BEDCA database and found real gaps. BEDCA's terms do not allow republishing, so the table was rebuilt from USDA SR Legacy (public domain), each entry carrying its source id. | Seven Spain-specific foods have no USDA entry and are labelled `estimate`. |
 | Goals from a standard formula, with floors | Mifflin-St Jeor for energy, protein and fat per kg of body weight, sex-specific reference intakes. A deficit never goes below a safe floor, and the app says when the floor was applied. | These are estimates, and the app says so. It is not medical advice. |
@@ -60,7 +60,7 @@ Built in steps. This list only contains what exists.
 | 2 | Repository, PWA shell, design system, automatic deploy | Done |
 | 3a | Local-first app: profile and goals, daily log, food search, favourites, water, steps, progress, export | Done |
 | 3b | Security hardening and the security test suite | Done |
-| 3c | Google sign-in and cloud sync (Firebase project is ready, the code is not) | Next |
+| 3c | Google sign-in and cloud copy: built and tested with two simulated devices, sign-in verified up to Google's account page; a full sign-in with a real account is still to be exercised | Built, needs a real-account test |
 | 4 | Camera: photo analysis with AI, barcode (Open Food Facts), nutrition label | Planned |
 
 What works today, all on your device:
@@ -71,15 +71,17 @@ What works today, all on your device:
 - **Progress:** a month calendar of the days you met your goal, average calories per week, weight history.
 - **Settings:** edit profile and goals (past days keep the goals they had), light and dark theme, export everything as JSON, delete it from the device.
 
-Not there yet: sign-in and cloud copy, and the three camera options of the `+` menu, which show a notice. Steps are typed by hand.
+- **Cloud copy (optional):** one button in Settings, "Continuar con Google". Meals, water, steps, favourites, weights, goals and profile sync between devices; the newest edit wins and a deletion on one phone reaches the others. The app works the same without an account.
+
+Not there yet: the three camera options of the `+` menu (photo, barcode, label), which show a notice. Steps are typed by hand.
 
 ## Testing and security
 
 This is the part I would look at first in someone else's repo, so it is the part I spent the most care on.
 
 ```bash
-npm test          # 169 tests, no dependencies, about a second
-npm run coverage  # 98 % lines, 90 % branches overall; the pure core is at 100 % lines
+npm test          # 206 tests, no dependencies, about a second
+npm run coverage  # 98 % lines, 89 % branches overall; most of the pure core is at 100 % lines
 ```
 
 - **Unit tests** for every pure module: nutrition maths, goals (worked examples by hand for a man and a woman, floors, monotonicity), dates across daylight-saving changes, search, progress, the store.

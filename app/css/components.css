@@ -480,6 +480,8 @@
 .link-row .icon { color: var(--ink-3); flex: none; }
 .link-title { font-weight: 600; }
 .version { text-align: center; padding-top: 6px; }
+.cloud-card { display: grid; gap: 12px; }
+.cloud-actions { display: grid; gap: 8px; }
 .card > .section-title + p { margin-top: 6px; }
 .noscript { padding: 40px var(--gutter); text-align: center; }
 

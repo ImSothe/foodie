@@ -1,6 +1,6 @@
 # Security
 
-foodie is a static web app (HTML, CSS and JavaScript served by GitHub Pages). Today it has no server, no account and no network calls of its own: everything you enter stays in your browser's `localStorage`. This page says what is defended, how that is checked, and what is not.
+foodie is a static web app (HTML, CSS and JavaScript served by GitHub Pages). Everything you enter stays in your browser's `localStorage`. An account is optional: if you sign in with Google, a copy is kept in Firestore under your own user id, and nothing else in the app talks to the network. This page says what is defended, how that is checked, and what is not.
 
 ## Reporting a vulnerability
 
@@ -33,6 +33,25 @@ Fuzzing is deterministic. If it ever fails, the message prints the seed; replay 
 - **Nutrition and goal figures are estimates** (a standard formula and rounded food tables), not medical advice. They are not verified by this project's tests, which check only internal consistency.
 - **Browser and extensions** are outside this app's control, and the checks above were run in a recent Chromium and Node, not on every browser.
 
+## Cloud copy (optional): what is defended and what is not
+
+| Risk | Defence | Test |
+|---|---|---|
+| Someone reading another user's data | `firestore.rules`: deny by default; a signed-in user can read and write only `users/{their uid}`; every write validates field names, types, ranges and map sizes | `rules.test.js` (static, mutation-checked) |
+| A different account on the same phone inheriting the first one's data | On sign-in, if the stored account id differs, the local data is cleared before anything is merged | `cloud.test.js` ("another account ...") |
+| Hostile or corrupt cloud documents | Everything that comes back goes through the same cleaners as local data before it is merged or shown | `cloud.test.js`, `merge.test.js`, fuzzing in `security.test.js` |
+| Two devices overwriting each other | Per-record merge: newest edit wins, deletions travel as tombstones, a clock far in the future is capped; merging is commutative, idempotent and associative | `merge.test.js` (2,000 generated state triples), `cloud.test.js` (two devices) |
+| Loading code from the network | The Firebase SDK is vendored in `app/vendor/` (version, hash and licences in its README) and served from this origin; the CSP allows `apis.google.com` for scripts only (the helper Firebase Auth loads to open the Google popup) and one frame (this project's `firebaseapp.com` sign-in page) | `static.test.js` (CSP lists pinned, each host with a reason) |
+
+The `apiKey` in `app/data/firebase-config.js` is not a secret: every Firebase web app ships it, and it only identifies the project. The data is protected by the rules above, and a test allows that key in that one file only.
+
+Not defended, and worth knowing:
+
+- **The rules are tested as text, not executed.** `rules.test.js` fails if a rule is opened up or a validation is dropped, but it does not run the rules against requests. Running them needs the Firestore emulator and is not set up yet.
+- **Rules cannot look inside a meal.** They cap how many entries a map may hold and check each field's type and range; the content of meals (names, items, per-100 g values) is checked by the app's cleaners on every read and write. A user can only damage their own data.
+- **Google sees your data.** It is stored in Google's Firestore (eur3, Europe) under your Google account id. foodie has no server of its own and cannot read it without you being signed in.
+- **Sign-in was verified up to Google's account page, not past it.** Opening the popup and reaching Google's sign-in produced no CSP violation; a complete sign-in, and the sync against the real Firestore, still need to be exercised by a person with a Google account (including the installed iPhone PWA).
+
 ## Planned, not built
 
-Sign-in and cloud copy are not implemented. When they are, the plan is: per-user Firestore rules that deny everything by default and allow a user only their own documents, rules tests run in CI, a CSP `connect-src` extended with the exact hosts and nothing else (the test in `static.test.js` lists the allowed hosts so that adding one is a deliberate change), and the same cleaning of everything that comes back from the server. None of this exists yet.
+Rules tests that execute the rules against the Firestore emulator in CI. The planned camera features will add the Open Food Facts host to `connect-src` and the AI endpoint through Firebase AI Logic, each one in the explicit lists of `static.test.js` (it lists the allowed hosts so that adding one is a deliberate change), and the same cleaning of everything that comes back from the server. None of this exists yet.

@@ -11,10 +11,12 @@ import { openAddFood } from './ui/screens/add-food.js';
 import { isoDate, streak } from './core/dates.js';
 import { resolveRoute } from './core/router.js';
 import { store, isStoreKey } from './data/store.js';
+import { createCloud } from './data/cloud.js';
 
 export const APP_VERSION = '0.2.0';
 
 const today = isoDate();
+const cloud = createCloud({ store });
 const state = { selected: today };
 const view = $('#view');
 
@@ -34,7 +36,7 @@ const ROUTES = {
     render: (fresh) => progressScreen({ store, today, fresh, onChange: () => render(false), onOpenDay: goHome }),
   },
   '/guardadas': { title: 'Guardadas', render: () => savedScreen({ store, selected: state.selected, today }) },
-  '/ajustes': { title: 'Ajustes', render: () => settingsScreen({ store, version: APP_VERSION, today }) },
+  '/ajustes': { title: 'Ajustes', render: () => settingsScreen({ store, cloud, version: APP_VERSION, today }) },
   '/perfil': {
     title: 'Tu plan', tab: '/ajustes',
     render: () => onboardingScreen({
@@ -144,5 +146,7 @@ store.onStorageError((error) => toast(error.kind === 'write'
 // Another tab changed the data: read it again.
 window.addEventListener('storage', (e) => { if (isStoreKey(e.key)) store.reload(); });
 window.addEventListener('hashchange', () => render(true));
+cloud.onChange(() => { if (currentPath() === '/ajustes') render(false); });
 render(true);
 registerServiceWorker();
+setTimeout(() => cloud.start(), 1500);        // after the first paint; only does anything on a device that signed in before

@@ -1,5 +1,6 @@
 /* foodie · Ajustes: theme, profile and goals, your data (export and delete), design system link. */
 import { h, toast } from '../dom.js';
+import { cloudCard } from './cloud-card.js';
 import { icon } from '../icons.js';
 import { fmtNum } from '../../core/nutrition.js';
 import { ageOf, DEFAULT_PACE } from '../../core/goals.js';
@@ -78,7 +79,7 @@ function dataCard(store, today) {
  * @param {string} o.version
  * @param {string} o.today
  */
-export function settingsScreen({ store, version, today }) {
+export function settingsScreen({ store, cloud, version, today }) {
   const current = window.fdTheme ? window.fdTheme.get() : 'auto';
   return [
     h('h1', { class: 'title' }, 'Ajustes'),
@@ -92,9 +93,7 @@ export function settingsScreen({ store, version, today }) {
         h('p', { class: 'small muted' }, 'Automático sigue el tema de tu móvil.'))),
     profileCard(store, today),
     dataCard(store, today),
-    h('section', { class: 'card' },
-      h('h2', { class: 'section-title' }, 'Cuenta'),
-      h('p', { class: 'muted' }, 'El inicio de sesión con Google y la copia en la nube todavía no están disponibles en esta versión.')),
+    cloudCard(cloud),
     h('a', { class: 'card link-row', href: '#/kit' },
       h('span', null, h('span', { class: 'link-title' }, 'Sistema de diseño'), h('span', { class: 'small muted' }, 'Colores, tipografía y componentes de la app')),
       icon('right', 22)),

@@ -107,8 +107,16 @@ test('repository: no runtime dependencies, no secrets and no personal data track
     assert.ok(!/(^|\/)(\.env.*|.*\.pem|.*\.key|CLAUDE\.md|\.claude\/.*)$/i.test(f), `sensitive file tracked: ${f}`);
     if (/\.(png|woff2)$/.test(f) || f === 'tests/static.test.js') continue;
     const text = readFileSync(join(ROOT, f), 'utf8');
-    for (const re of secret) assert.ok(!re.test(text), `possible secret or personal data in ${f}: ${re}`);
+    for (const re of secret) {
+      // The one allowed exception: the Firebase web config. Its apiKey only identifies the project to Google and is public in every
+      // Firebase web app; the data is protected by firestore.rules, not by hiding this value. Any other file holding one still fails.
+      if (re.source.startsWith('AIza') && f === 'app/data/firebase-config.js') continue;
+      assert.ok(!re.test(text), `possible secret or personal data in ${f}: ${re}`);
+    }
   }
+  const config = readFileSync(join(ROOT, 'app/data/firebase-config.js'), 'utf8');
+  assert.equal((config.match(/AIza[0-9A-Za-z_-]{35}/g) || []).length, 1, 'firebase-config.js should hold exactly the web apiKey');
+  assert.ok(!/privateKey|client_secret|serviceAccount/i.test(config), 'only public web config belongs in firebase-config.js');
 });
 
 // ---------------------------------------------------------------------------------------------
@@ -166,11 +174,19 @@ test('no console.log or console.debug left in app/', () => {
 });
 
 test('connect-src is exactly the allowed list: adding a host must be a deliberate change to this test', () => {
-  const ALLOWED_CONNECT_SRC = ["'self'"];   // sign-in and sync will add hosts here, on purpose, with their own review
+  // Every host below is needed by Google sign-in or Firestore sync (found by running the sign-in flow and reading the CSP violations):
+  //   identitytoolkit.googleapis.com  sign-in requests          securetoken.googleapis.com  refreshing the sign-in token
+  //   firestore.googleapis.com        reading and writing the user's own documents
+  // Adding a host must be a deliberate change to this test, with a line saying why.
+  const ALLOWED_CONNECT_SRC = ["'self'", 'https://identitytoolkit.googleapis.com', 'https://securetoken.googleapis.com', 'https://firestore.googleapis.com'];
   const m = html.match(/http-equiv="Content-Security-Policy" content="([^"]+)"/);
   const csp = Object.fromEntries(m[1].split(';').map((d) => d.trim().split(/\s+/)).map(([name, ...v]) => [name, v]));
   assert.deepEqual(csp['connect-src'], ALLOWED_CONNECT_SRC);
-  for (const dir of ['script-src', 'style-src', 'font-src', 'worker-src', 'manifest-src']) assert.deepEqual(csp[dir], ["'self'"], dir);
+  for (const dir of ['style-src', 'font-src', 'worker-src', 'manifest-src']) assert.deepEqual(csp[dir], ["'self'"], dir);
+  // apis.google.com: the helper script that Firebase Auth loads to open the Google sign-in popup. Nothing else may run.
+  assert.deepEqual(csp['script-src'], ["'self'", 'https://apis.google.com']);
+  // The sign-in page of this Firebase project, embedded by the Auth SDK to receive the result of the popup.
+  assert.deepEqual(csp['frame-src'], ['https://foodie-6b6da.firebaseapp.com']);
   assert.deepEqual(csp['img-src'], ["'self'", 'data:', 'blob:']);
   assert.deepEqual(csp['default-src'], ["'none'"]);
 });
