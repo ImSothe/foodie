@@ -206,8 +206,8 @@ test('app code never contacts another origin: no absolute URLs and no network AP
     const code = appSource(f);
     // The only absolute URLs in app code: the SVG namespace, and Open Food Facts in off.js (the API host and the host its product images
     // must come from; both are also pinned in the CSP test above). Anything else, anywhere else, fails.
-    const withoutAllowed = code.replace(/http:\/\/www\.w3\.org\/2000\/svg/g, '')
-      .replace(['core/off.js', 'ui/dom.js'].includes(f) ? /https:\/\/(world|images)\.openfoodfacts\.org/g : /$^/g, '');
+    let withoutAllowed = code.replace(/http:\/\/www\.w3\.org\/2000\/svg/g, '');
+    if (['core/off.js', 'ui/dom.js'].includes(f)) withoutAllowed = withoutAllowed.replace(/https:\/\/(world|images)\.openfoodfacts\.org/g, '');
     assert.ok(!/https?:\/\//.test(withoutAllowed), `${f} has an absolute URL`);
     assert.ok(!/\b(XMLHttpRequest|WebSocket|EventSource|sendBeacon|importScripts)\b/.test(code), `${f} uses a network API that is not allowed yet`);
     // fetch of own files only (the table of foods, the service worker's own requests); off-client.js forwards `fetchFn(offUrl(code))`, whose origin
