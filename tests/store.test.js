@@ -8,6 +8,7 @@ const memory = (initial = {}) => {
 };
 let n = 0;
 const env = { uuid: () => `id-${++n}`, now: () => new Date(2026, 10, 12, 9, 30) };
+const plain = (x) => JSON.parse(JSON.stringify(x));
 const DAY = '2026-11-12';
 const per100 = { kcal: 165, protein_g: 31, carbs_g: 0, fat_g: 3.6 };
 const newMeal = (over = {}) => ({ name: 'Pollo', slot: 'Almuerzo', source: 'db', items: [{ name: 'Pollo', grams: 150, per100 }], ...over });
@@ -19,7 +20,7 @@ test('an empty storage gives an empty store', () => {
   assert.equal(s.getProfile(), null);
   assert.equal(s.goalsFor(DAY), null);
   assert.deepEqual(s.mealsOf(DAY), []);
-  assert.deepEqual(s.getDay(DAY), { meals: {}, waterMl: 0, steps: 0 });
+  assert.deepEqual(plain(s.getDay(DAY)), { meals: {}, waterMl: 0, steps: 0 });
   assert.equal(s.loggedDays().size, 0);
 });
 
@@ -31,9 +32,9 @@ test('corrupt or hostile stored data is ignored, never thrown', () => {
   const s = createStore(st, env);
   assert.equal(s.getProfile(), null);
   assert.deepEqual(s.getGoalHistory(), []);
-  assert.deepEqual(s.getDays(), {});
+  assert.deepEqual(plain(s.getDays()), {});
   assert.deepEqual(s.getSaved(), []);
-  assert.deepEqual(s.getWeights(), {});
+  assert.deepEqual(plain(s.getWeights()), {});
 });
 
 test('stored data is validated on load', () => {
@@ -130,7 +131,7 @@ test('deleteMeal returns the meal so it can be restored; an emptied day disappea
   const m = s.addMeal(DAY, newMeal());
   const removed = s.deleteMeal(DAY, m.id);
   assert.equal(removed.id, m.id);
-  assert.deepEqual(s.getDays(), {});
+  assert.deepEqual(plain(s.getDays()), {});
   assert.equal(s.deleteMeal(DAY, m.id), null);
   s.addMeal(DAY, removed);
   assert.equal(s.mealsOf(DAY)[0].id, m.id);
@@ -154,7 +155,7 @@ test('water: add, undo with a negative amount, never below zero, correct to an e
   assert.equal(s.addWater(DAY, 500), 750);
   assert.equal(s.addWater(DAY, -500), 250);
   assert.equal(s.addWater(DAY, -1000), 0);
-  assert.deepEqual(s.getDays(), {});                      // zero water on an otherwise empty day leaves no trace
+  assert.deepEqual(plain(s.getDays()), {});                      // zero water on an otherwise empty day leaves no trace
   assert.equal(s.setWater(DAY, 1800), 1800);
   assert.equal(s.setWater(DAY, 'abc'), 0);
   assert.equal(s.addWater('x', 250), null);
@@ -204,7 +205,7 @@ test('exportAll has every dataset; clearAll removes only fd. data keys', () => {
   assert.equal(JSON.parse(JSON.stringify(out)).days[DAY].meals[Object.keys(out.days[DAY].meals)[0]].name, 'Pollo');
   s.clearAll();
   assert.equal(s.getProfile(), null);
-  assert.deepEqual(s.getDays(), {});
+  assert.deepEqual(plain(s.getDays()), {});
   assert.equal(st.m.get('other-app'), 'keep');                     // never touches anything it does not own
   assert.equal(st.m.get('fd.theme'), 'dark');                      // the theme is a preference, not personal data
   for (const k of Object.values(STORAGE_KEYS)) assert.equal(st.m.has(k), false, k);

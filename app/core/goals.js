@@ -54,7 +54,11 @@ export const ageOf = (profile, year = new Date().getFullYear()) => year - profil
  * missing or absurd. Accepts `birthYear` or `age`; stores `birthYear`.
  */
 export function cleanProfile(raw, year = new Date().getFullYear()) {
-  if (!raw || typeof raw !== 'object') return null;
+  try { return cleanProfileUnsafe(raw, year); } catch (e) { return null; } // a throwing getter or proxy is just invalid input
+}
+
+function cleanProfileUnsafe(raw, year) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   if (!SEXES.includes(raw.sex) || !ACTIVITIES.includes(raw.activity) || !GOALS.includes(raw.goal)) return null;
   let birthYear = toNum(raw.birthYear);
   if (birthYear === null || !Number.isInteger(birthYear)) {

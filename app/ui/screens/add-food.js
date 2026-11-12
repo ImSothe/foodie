@@ -5,11 +5,12 @@ import { icon } from '../icons.js';
 import { numberField } from '../fields.js';
 import { buildIndex, searchFoods } from '../../core/search.js';
 import { scale, sumItems, fmtNum } from '../../core/nutrition.js';
-import { defaultSlot, SLOTS, cleanPer100 } from '../../core/schema.js';
+import { defaultSlot, SLOTS, cleanFood } from '../../core/schema.js';
 import { dayTitle } from '../../core/dates.js';
 
 const FOODS_URL = 'data/foods.es.json';
 const MAX_GRAMS = 5000;
+const MAX_FOODS = 2000;
 const STEP = 5;
 const pad = (n) => String(n).padStart(2, '0');
 
@@ -19,7 +20,8 @@ function loadFoods() {
   if (!foodsPromise) {
     foodsPromise = fetch(FOODS_URL)
       .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
-      .then((list) => buildIndex((Array.isArray(list) ? list : []).filter((f) => f && typeof f.name === 'string' && f.portion && f.portion.grams > 0 && cleanPer100(f.per100))))
+      // every field goes through the same cleaning as text typed by the user before it can reach a meal or the screen
+      .then((list) => buildIndex((Array.isArray(list) ? list.slice(0, MAX_FOODS) : []).map(cleanFood).filter(Boolean)))
       .catch((e) => { foodsPromise = null; throw e; });
   }
   return foodsPromise;
@@ -180,7 +182,7 @@ export function openAddFood({ store, day, today }) {
       });
       sheet.close();
       if (meal) toast('Comida añadida', { label: 'Deshacer', fn: () => store.deleteMeal(day, meal.id) });
-      else toast('No se pudo guardar la comida. Vuelve a intentarlo.');
+      else toast('No se pudo guardar la comida. Ese día puede tener ya 100 comidas.');
     };
     show(
       h('h3', { class: 'section-title food-title' }, 'Tu comida'),

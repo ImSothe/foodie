@@ -193,6 +193,7 @@ export function homeScreen({ store, selected, today, fresh, onSelect, onChange, 
         const copy = store.duplicateMeal(selected, meal.id, iso);
         sheet.close();
         if (copy) toast(`Comida duplicada ${inDay(iso, today)}`, iso === selected ? undefined : { label: 'Ver', fn: () => onSelect(iso) });
+        else toast('No se pudo duplicar la comida. Ese día puede tener ya 100 comidas.');
       } },
       h('div', { class: 'field' }, h('label', { class: 'field-label', for: 'dup-date' }, 'Día'), input, note),
       h('div', { class: 'quick-row' },
@@ -217,7 +218,7 @@ export function homeScreen({ store, selected, today, fresh, onSelect, onChange, 
           h('button', { type: 'button', class: 'btn btn-secondary', onClick: () => {
             const r = store.saveMeal(draft);
             sheet.close();
-            toast(r && r.added ? 'Guardada en favoritas' : 'Ya estaba en favoritas');
+            toast(!r ? 'No se pudo guardar la comida.' : r.added ? 'Guardada en favoritas' : r.full ? 'Ya tienes 300 comidas guardadas. Quita alguna para guardar otra.' : 'Ya estaba en favoritas');
           } }, icon('bookmark', 20), 'Guardar en favoritas'),
           h('button', { type: 'button', class: 'btn btn-quiet btn-delete', onClick: () => {
             sheet.close();

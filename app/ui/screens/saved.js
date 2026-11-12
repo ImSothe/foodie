@@ -27,6 +27,7 @@ export function savedScreen({ store, selected, today }) {
       time: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
     });
     if (copy) toast(`Añadida a ${dayName}`, { label: 'Deshacer', fn: () => store.deleteMeal(selected, copy.id) });
+    else toast('No se pudo añadir la comida. Ese día puede tener ya 100 comidas.');
   };
   const remove = (meal) => {
     const removed = store.removeSaved(meal.id);

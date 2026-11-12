@@ -5,6 +5,7 @@ import {
   setGoalsEntry, cleanSaved, cleanWeights, weightList, defaultSlot, clampWater, clampSteps, isEmptyDay,
 } from '../app/core/schema.js';
 
+const plain = (x) => JSON.parse(JSON.stringify(x));
 const per100 = { kcal: 165, protein_g: 31, carbs_g: 0, fat_g: 3.6 };
 const item = (over = {}) => ({ name: 'Pollo', grams: 150, gramsMin: 50, gramsMax: 300, per100, ...over });
 const meal = (over = {}) => ({ id: 'm1', name: 'Comida', slot: 'Almuerzo', time: '14:00', source: 'db', items: [item()], ...over });
@@ -54,7 +55,7 @@ test('cleanDay: meals keyed by id, water and steps as whole non-negative numbers
   assert.deepEqual(Object.keys(d.meals), ['a']);
   assert.equal(d.waterMl, 1251);
   assert.equal(d.steps, 0);
-  assert.deepEqual(cleanDay({}), { meals: {}, waterMl: 0, steps: 0 });
+  assert.deepEqual(plain(cleanDay({})), { meals: {}, waterMl: 0, steps: 0 });
   assert.equal(cleanDay(null), null);
   assert.equal(cleanDay({ waterMl: 99999999 }).waterMl, 0);                 // absurd values are dropped, not clamped
 });
@@ -68,8 +69,8 @@ test('cleanDays: invalid dates and empty days are dropped', () => {
     '2026-11-10': { waterMl: 500 },
   });
   assert.deepEqual(Object.keys(days).sort(), ['2026-11-10', '2026-11-12']);
-  assert.deepEqual(cleanDays('x'), {});
-  assert.deepEqual(cleanDays(null), {});
+  assert.deepEqual(plain(cleanDays('x')), {});
+  assert.deepEqual(plain(cleanDays(null)), {});
 });
 
 test('loggedDays counts days with meals only; mealsOfDay sorts by time', () => {
@@ -133,7 +134,7 @@ test('cleanSaved: valid unique meals only', () => {
 
 test('cleanWeights and weightList', () => {
   const w = cleanWeights({ '2026-11-12': 80.04, '2026-11-01': 81.5, 'x': 70, '2026-11-02': 10, '2026-11-03': 'a' });
-  assert.deepEqual(w, { '2026-11-12': 80, '2026-11-01': 81.5 });
+  assert.deepEqual(plain(w), { '2026-11-12': 80, '2026-11-01': 81.5 });
   assert.deepEqual(weightList(w), [{ iso: '2026-11-01', kg: 81.5 }, { iso: '2026-11-12', kg: 80 }]);
   assert.deepEqual(weightList(null), []);
 });
