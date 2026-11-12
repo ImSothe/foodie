@@ -6,6 +6,7 @@
   "description": "PWA to track calories, macros and micronutrients from a photo, a barcode or a search.",
   "scripts": {
     "test": "node --test",
+    "coverage": "node --test --experimental-test-coverage",
     "dev": "node tools/dev_server.mjs 8790",
     "stamp": "node tools/stamp.mjs",
     "icons": "python tools/make_icons.py"

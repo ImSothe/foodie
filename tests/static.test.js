@@ -48,7 +48,7 @@ test('boot.js loads first, hides the app inside foreign frames and sets the them
 
 test('app code never builds HTML from strings or evaluates text as code', () => {
   const banned = [/\beval\s*\(/, /new\s+Function\s*\(/, /document\.write/, /\.innerHTML\b/, /\.outerHTML\b/, /insertAdjacentHTML/,
-    /\bsrcdoc\b/, /setTimeout\s*\(\s*['"`]/, /setInterval\s*\(\s*['"`]/, /createContextualFragment/, /DOMParser/];
+    /\.srcdoc\b/, /setAttribute\(\s*['"`]srcdoc/i, /\bsrcdoc\s*[:=]/, /setTimeout\s*\(\s*['"`]/, /setInterval\s*\(\s*['"`]/, /createContextualFragment/, /DOMParser/];
   for (const f of appJs) {
     const code = readFileSync(join(APP_DIR, f), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
     for (const re of banned) assert.ok(!re.test(code), `${f} uses ${re}`);
@@ -109,4 +109,106 @@ test('repository: no runtime dependencies, no secrets and no personal data track
     const text = readFileSync(join(ROOT, f), 'utf8');
     for (const re of secret) assert.ok(!re.test(text), `possible secret or personal data in ${f}: ${re}`);
   }
+});
+
+// ---------------------------------------------------------------------------------------------
+// Security guards (see SECURITY.md)
+// ---------------------------------------------------------------------------------------------
+
+const stripComments = (code) => code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+const appSource = (f) => stripComments(readFileSync(join(APP_DIR, f), 'utf8'));
+const jsFiles = listAppFiles().filter((f) => f.endsWith('.js'));
+
+test('srcdoc is only ever named in the deny list of the DOM helper', () => {
+  for (const f of jsFiles) {
+    const hits = [...readFileSync(join(APP_DIR, f), 'utf8').matchAll(/srcdoc/gi)].length;
+    if (f !== 'ui/dom.js') assert.equal(hits, 0, `${f} mentions srcdoc`);
+  }
+  const dom = readFileSync(join(APP_DIR, 'ui/dom.js'), 'utf8');
+  assert.ok(/DROPPED_ATTRIBUTES = new Set\(\[[^\]]*'srcdoc'/.test(dom), 'dom.js must list srcdoc as a dropped attribute');
+});
+
+test('every storage key written in app/ starts with "fd." (the origin is shared with other apps)', () => {
+  const literal = /(?:getItem|setItem|removeItem)\(\s*['"`]([^'"`]+)['"`]/g;
+  let seen = 0;
+  for (const f of [...jsFiles, 'sw.js', 'boot.js']) {
+    const code = appSource(f);
+    for (const m of code.matchAll(literal)) {
+      seen += 1;
+      assert.ok(m[1].startsWith('fd.'), `${f}: storage key "${m[1]}" does not start with fd.`);
+    }
+    for (const m of code.matchAll(/['"`](fd\.[A-Za-z0-9._-]*)['"`]/g)) assert.match(m[1], /^fd\.[a-z]+$/, `${f}: odd key ${m[1]}`);
+  }
+  assert.ok(seen >= 1, 'the scan found no storage calls: the test is broken');
+});
+
+test('the store only touches the keys listed in STORAGE_KEYS, all under "fd."', async () => {
+  const { STORAGE_KEYS } = await import('../app/data/store.js');
+  for (const k of Object.values(STORAGE_KEYS)) assert.match(k, /^fd\.[a-z]+$/);
+  const store = readFileSync(join(APP_DIR, 'data/store.js'), 'utf8');
+  assert.ok(!/(?:getItem|setItem|removeItem)\(\s*['"`]/.test(store.replace(/__fd_probe__/g, '')), 'the store must use STORAGE_KEYS, not literals');
+});
+
+test('external links never leave the opener behind: target="_blank" needs rel="noopener"', () => {
+  const sources = [['index.html', html], ...jsFiles.map((f) => [f, readFileSync(join(APP_DIR, f), 'utf8')])];
+  for (const [name, text] of sources) {
+    if (/_blank/.test(text)) assert.ok(/noopener/.test(text), `${name} opens a new window without rel="noopener"`);
+  }
+});
+
+test('no console.log or console.debug left in app/', () => {
+  for (const f of [...jsFiles, 'sw.js', 'boot.js']) assert.ok(!/console\.(log|debug|trace|dir)\b/.test(appSource(f)), `${f} has a console call`);
+});
+
+test('connect-src is exactly the allowed list: adding a host must be a deliberate change to this test', () => {
+  const ALLOWED_CONNECT_SRC = ["'self'"];   // sign-in and sync will add hosts here, on purpose, with their own review
+  const m = html.match(/http-equiv="Content-Security-Policy" content="([^"]+)"/);
+  const csp = Object.fromEntries(m[1].split(';').map((d) => d.trim().split(/\s+/)).map(([name, ...v]) => [name, v]));
+  assert.deepEqual(csp['connect-src'], ALLOWED_CONNECT_SRC);
+  for (const dir of ['script-src', 'style-src', 'font-src', 'worker-src', 'manifest-src']) assert.deepEqual(csp[dir], ["'self'"], dir);
+  assert.deepEqual(csp['img-src'], ["'self'", 'data:', 'blob:']);
+  assert.deepEqual(csp['default-src'], ["'none'"]);
+});
+
+test('app code never contacts another origin: no absolute URLs and no network API besides fetch of own files', () => {
+  for (const f of [...jsFiles, 'sw.js']) {
+    const code = appSource(f);
+    assert.ok(!/https?:\/\//.test(code.replace(/http:\/\/www\.w3\.org\/2000\/svg/g, '')), `${f} has an absolute URL`);
+    assert.ok(!/\b(XMLHttpRequest|WebSocket|EventSource|sendBeacon|importScripts)\b/.test(code), `${f} uses a network API that is not allowed yet`);
+    for (const m of code.matchAll(/\bfetch\(\s*([^)]*)\)/g)) assert.ok(/^(FOODS_URL|req\b)/.test(m[1].trim()), `${f}: fetch(${m[1]})`);
+  }
+});
+
+test('service worker: never caches a response from another origin', () => {
+  const sw = read('app/sw.js');
+  const fetchHandler = sw.slice(sw.indexOf("addEventListener('fetch'"));
+  const guard = fetchHandler.indexOf('origin !== self.location.origin');
+  assert.ok(guard > 0 && guard < fetchHandler.indexOf('respondWith'), 'the cross-origin guard must come before the worker answers anything');
+  assert.equal([...sw.matchAll(/cache\.put\(/g)].length, 1, 'one place stores responses');
+  assert.ok(/res\.ok && inShell\(req\.url\)/.test(sw), 'only successful responses for files of the app are stored');
+  assert.equal([...sw.matchAll(/addAll\(/g)].length, 1);
+  assert.ok(/addAll\(SHELL\./.test(sw), 'addAll only takes the SHELL list');
+  for (const url of computeStamp().shell) assert.ok(url === './' || /^\.\/[A-Za-z0-9_./-]+$/.test(url), `${url} is not a relative path of the app`);
+});
+
+test('forbidden APIs: postMessage, document.cookie, window.name, indexedDB and web storage stay out of the UI', () => {
+  const banned = [[/\bpostMessage\b/, 'postMessage'], [/document\.cookie/, 'document.cookie'], [/\bwindow\.name\b/, 'window.name'], [/\bindexedDB\b/, 'indexedDB'],
+    [/\bsessionStorage\b/, 'sessionStorage'], [/\blocalStorage\b/, 'localStorage'], [/\bcaches\b/, 'caches']];
+  for (const f of [...jsFiles, 'sw.js', 'boot.js']) {
+    const code = appSource(f);
+    for (const [re, name] of banned) {
+      if (name === 'localStorage' && (f === 'data/store.js' || f === 'boot.js')) continue;   // the only two owners of localStorage
+      if (name === 'caches' && f === 'sw.js') continue;                                       // cache storage belongs to the service worker
+      assert.ok(!re.test(code), `${f} uses ${name}`);
+    }
+  }
+  const boot = appSource('boot.js');
+  assert.ok([...boot.matchAll(/(?:getItem|setItem)\(\s*['"]([^'"]+)/g)].every((m) => m[1] === 'fd.theme'), 'boot.js may only touch fd.theme');
+});
+
+test('main.js resolves routes through resolveRoute and never indexes ROUTES with the address', () => {
+  const main = appSource('main.js');
+  assert.ok(/resolveRoute\(/.test(main));
+  assert.ok(!/ROUTES\[\s*p\s*\]/.test(main));
+  assert.ok(!/ROUTES\[[^\]]*hash/.test(main));
 });
