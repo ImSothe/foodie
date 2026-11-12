@@ -118,6 +118,11 @@ test('repository: no runtime dependencies, no secrets and no personal data track
 const stripComments = (code) => code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 const appSource = (f) => stripComments(readFileSync(join(APP_DIR, f), 'utf8'));
 const jsFiles = listAppFiles().filter((f) => f.endsWith('.js'));
+// Third-party code, vendored by exact path (tools/vendor_*.mjs, see app/vendor/README.txt). It is minified SDK code that legitimately uses
+// postMessage, IndexedDB, web storage, cookies for its own iframe protocol, absolute Google URLs and console warnings, so it is exempt from
+// the guards about those APIs ONLY. The guards against HTML-from-strings and eval (above) still apply to it, and it passes them.
+const VENDORED = new Map([['vendor/firebase.js', 'Firebase web SDK: uses postMessage/IndexedDB/web storage/cookies/console and Google URLs']]);
+const ownJs = jsFiles.filter((f) => !VENDORED.has(f));
 
 test('srcdoc is only ever named in the deny list of the DOM helper', () => {
   for (const f of jsFiles) {
@@ -131,7 +136,7 @@ test('srcdoc is only ever named in the deny list of the DOM helper', () => {
 test('every storage key written in app/ starts with "fd." (the origin is shared with other apps)', () => {
   const literal = /(?:getItem|setItem|removeItem)\(\s*['"`]([^'"`]+)['"`]/g;
   let seen = 0;
-  for (const f of [...jsFiles, 'sw.js', 'boot.js']) {
+  for (const f of [...ownJs, 'sw.js', 'boot.js']) {
     const code = appSource(f);
     for (const m of code.matchAll(literal)) {
       seen += 1;
@@ -150,14 +155,14 @@ test('the store only touches the keys listed in STORAGE_KEYS, all under "fd."', 
 });
 
 test('external links never leave the opener behind: target="_blank" needs rel="noopener"', () => {
-  const sources = [['index.html', html], ...jsFiles.map((f) => [f, readFileSync(join(APP_DIR, f), 'utf8')])];
+  const sources = [['index.html', html], ...ownJs.map((f) => [f, readFileSync(join(APP_DIR, f), 'utf8')])];
   for (const [name, text] of sources) {
     if (/_blank/.test(text)) assert.ok(/noopener/.test(text), `${name} opens a new window without rel="noopener"`);
   }
 });
 
 test('no console.log or console.debug left in app/', () => {
-  for (const f of [...jsFiles, 'sw.js', 'boot.js']) assert.ok(!/console\.(log|debug|trace|dir)\b/.test(appSource(f)), `${f} has a console call`);
+  for (const f of [...ownJs, 'sw.js', 'boot.js']) assert.ok(!/console\.(log|debug|trace|dir)\b/.test(appSource(f)), `${f} has a console call`);
 });
 
 test('connect-src is exactly the allowed list: adding a host must be a deliberate change to this test', () => {
@@ -171,7 +176,7 @@ test('connect-src is exactly the allowed list: adding a host must be a deliberat
 });
 
 test('app code never contacts another origin: no absolute URLs and no network API besides fetch of own files', () => {
-  for (const f of [...jsFiles, 'sw.js']) {
+  for (const f of [...ownJs, 'sw.js']) {
     const code = appSource(f);
     assert.ok(!/https?:\/\//.test(code.replace(/http:\/\/www\.w3\.org\/2000\/svg/g, '')), `${f} has an absolute URL`);
     assert.ok(!/\b(XMLHttpRequest|WebSocket|EventSource|sendBeacon|importScripts)\b/.test(code), `${f} uses a network API that is not allowed yet`);
@@ -194,7 +199,7 @@ test('service worker: never caches a response from another origin', () => {
 test('forbidden APIs: postMessage, document.cookie, window.name, indexedDB and web storage stay out of the UI', () => {
   const banned = [[/\bpostMessage\b/, 'postMessage'], [/document\.cookie/, 'document.cookie'], [/\bwindow\.name\b/, 'window.name'], [/\bindexedDB\b/, 'indexedDB'],
     [/\bsessionStorage\b/, 'sessionStorage'], [/\blocalStorage\b/, 'localStorage'], [/\bcaches\b/, 'caches']];
-  for (const f of [...jsFiles, 'sw.js', 'boot.js']) {
+  for (const f of [...ownJs, 'sw.js', 'boot.js']) {
     const code = appSource(f);
     for (const [re, name] of banned) {
       if (name === 'localStorage' && (f === 'data/store.js' || f === 'boot.js')) continue;   // the only two owners of localStorage

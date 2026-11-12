@@ -1,8 +1,9 @@
 /* foodie · data shapes (pure logic). Everything read from storage, imported or typed by the user goes through
    these cleaners: they return a clean copy or null, never throw, and never trust the input.
 
-   days[iso]  = { meals: { [id]: Meal }, waterMl, steps }
-   Meal       = { id, name, slot, time: 'HH:MM', source, confidence?, items: [Item] }
+   days[iso]  = { meals: { [id]: Meal }, waterMl, steps, waterAt?, stepsAt?, deleted?: { [id]: stamp } }
+   Meal       = { id, name, slot, time: 'HH:MM', source, confidence?, updatedAt?, items: [Item] }
+   stamp      = milliseconds since 1970 of the last edit (cloud sync: newest edit wins; `deleted` holds tombstones of removed meals)
    Item       = { name, grams, gramsMin?, gramsMax?, per100 }        (totals are always derived, never stored)
    goals      = [{ from: iso, goals: { kcal, protein_g, carbs_g, fat_g, waterL, steps } }]   (sorted by `from`)
 
@@ -25,6 +26,9 @@ export const MAX_DAYS = 4000;
 export const MAX_WEIGHTS = 4000;
 export const MAX_SAVED = 300;
 export const MAX_NAME = 80;
+export const MAX_TOMBSTONES = 500;
+/** Largest edit stamp accepted (the year 3000): anything beyond is not a time. */
+export const MAX_STAMP = 32503680000000;
 export const MAX_ITEM_NAME = 120;
 const MAX_GRAMS = 5000;
 const MAX_WATER_ML = 20000;
@@ -34,6 +38,8 @@ const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 /** A finite number in range, or null. Negative zero becomes zero so JSON round trips are stable. */
 const numIn = (v, lo, hi) => (typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi ? (v === 0 ? 0 : v) : null);
 const round1 = (v) => Math.round(v * 10) / 10;
+/** An edit time in ms since 1970, whole, or null. */
+export const cleanStamp = (v) => { const n = numIn(v, 0, MAX_STAMP); return n === null ? null : Math.floor(n); };
 /** Runs a cleaner so that nothing it meets (a throwing getter, a revoked proxy) can escape as an exception. */
 const guard = (fn, fallback) => (...args) => {
   try { return fn(...args); } catch (e) { return fallback(); }
@@ -116,7 +122,7 @@ export const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 /**
  * @param {*} raw
- * @param {{id?:*, time?:*}} [over]  values that replace raw.id / raw.time (the store uses it for new ids), read without copying `raw`
+ * @param {{id?:*, time?:*, updatedAt?:*}} [over]  values that replace raw.id / raw.time / raw.updatedAt (the store uses it for new ids), read without copying `raw`
  */
 export const cleanMeal = guard((raw, over) => {
   if (!isObj(raw)) return null;
@@ -136,6 +142,8 @@ export const cleanMeal = guard((raw, over) => {
   };
   const confidence = numIn(raw.confidence, 0, 1);
   if (confidence !== null) meal.confidence = confidence;
+  const updatedAt = over && 'updatedAt' in over ? cleanStamp(over.updatedAt) : cleanStamp(raw.updatedAt);
+  if (updatedAt !== null) meal.updatedAt = updatedAt;
   return meal;
 }, () => null);
 
@@ -156,10 +164,31 @@ export const cleanDay = guard((raw) => {
   }
   day.waterMl = Math.round(numIn(raw.waterMl, 0, MAX_WATER_ML) || 0);
   day.steps = Math.round(numIn(raw.steps, 0, MAX_STEPS) || 0);
+  // sync fields are written only when they carry something, so data that never meets the cloud keeps its old shape
+  const waterAt = cleanStamp(raw.waterAt);
+  const stepsAt = cleanStamp(raw.stepsAt);
+  if (waterAt) day.waterAt = waterAt;
+  if (stepsAt) day.stepsAt = stepsAt;
+  const deleted = cleanTombstones(raw.deleted);
+  if (Object.keys(deleted).length) day.deleted = deleted;
   return day;
 }, () => null);
 
-export const isEmptyDay = (day) => !day || (!Object.keys(day.meals).length && !day.waterMl && !day.steps);
+/** { [id]: stamp } of removed meals, the newest MAX_TOMBSTONES kept. */
+export function cleanTombstones(raw) {
+  const out = nullMap();
+  if (!isObj(raw)) return out;
+  const entries = [];
+  for (const [id, at] of Object.entries(raw)) {
+    const stamp = isId(id) ? cleanStamp(at) : null;
+    if (stamp !== null) entries.push([id, stamp]);
+  }
+  entries.sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
+  for (const [id, stamp] of entries.slice(0, MAX_TOMBSTONES)) out[id] = stamp;
+  return out;
+}
+
+export const isEmptyDay = (day) => !day || (!Object.keys(day.meals).length && !day.waterMl && !day.steps && !(day.deleted && Object.keys(day.deleted).length));
 
 /** Every valid day of a stored map; empty days and invalid dates are dropped, and only the newest MAX_DAYS are kept. */
 export const cleanDays = guard((raw) => {
@@ -289,3 +318,48 @@ export function defaultSlot(hour) {
 const finiteOr0 = (v) => { const n = typeof v === 'number' ? v : typeof v === 'string' ? Number(v) : 0; return Number.isFinite(n) ? n : 0; };
 export const clampWater = (ml) => Math.round(Math.min(MAX_WATER_ML, Math.max(0, finiteOr0(ml)))) || 0;
 export const clampSteps = (n) => Math.round(Math.min(MAX_STEPS, Math.max(0, finiteOr0(n)))) || 0;
+
+// ---------- sync bookkeeping (kept in "fd.sync", never exported or sent to the cloud as such) ----------
+
+const UID = /^[A-Za-z0-9]{1,128}$/;
+export const MAX_DIRTY_DAYS = MAX_DAYS;
+const stampsMap = (raw, keyOk, cap) => {
+  const out = nullMap();
+  if (!isObj(raw)) return out;
+  for (const [k, v] of Object.entries(raw).slice(0, cap * 2)) {
+    const t = keyOk(k) ? cleanStamp(v) : null;
+    if (t) out[k] = t;
+    if (Object.keys(out).length >= cap) break;
+  }
+  return out;
+};
+
+export const emptySyncMeta = () => ({
+  uid: null, lastPull: 0, profileAt: 0, goalsAt: nullMap(), weightsAt: nullMap(), savedDeleted: nullMap(),
+  dirty: { days: nullMap(), saved: nullMap(), savedDeleted: nullMap(), weights: nullMap(), profile: 0, goals: 0 },
+});
+
+export const cleanSyncMeta = guard((raw) => {
+  const out = emptySyncMeta();
+  if (!isObj(raw)) return out;
+  out.uid = typeof raw.uid === 'string' && UID.test(raw.uid) ? raw.uid : null;
+  out.lastPull = cleanStamp(raw.lastPull) || 0;
+  out.profileAt = cleanStamp(raw.profileAt) || 0;
+  out.goalsAt = stampsMap(raw.goalsAt, isIso, 1000);
+  out.weightsAt = stampsMap(raw.weightsAt, isIso, MAX_WEIGHTS);
+  out.savedDeleted = stampsMap(raw.savedDeleted, isId, MAX_TOMBSTONES);
+  const d = isObj(raw.dirty) ? raw.dirty : {};
+  out.dirty.saved = stampsMap(d.saved, isId, MAX_SAVED);
+  out.dirty.savedDeleted = stampsMap(d.savedDeleted, isId, MAX_TOMBSTONES);
+  out.dirty.weights = stampsMap(d.weights, isIso, MAX_WEIGHTS);
+  out.dirty.profile = cleanStamp(d.profile) || 0;
+  out.dirty.goals = cleanStamp(d.goals) || 0;
+  if (isObj(d.days)) {
+    for (const [iso, m] of Object.entries(d.days).slice(0, MAX_DIRTY_DAYS)) {
+      if (!isIso(iso) || !isObj(m)) continue;
+      const entry = { m: stampsMap(m.m, isId, MAX_MEALS_PER_DAY), d: stampsMap(m.d, isId, MAX_TOMBSTONES), w: cleanStamp(m.w) || 0, s: cleanStamp(m.s) || 0 };
+      if (Object.keys(entry.m).length || Object.keys(entry.d).length || entry.w || entry.s) out.dirty.days[iso] = entry;
+    }
+  }
+  return out;
+}, emptySyncMeta);
