@@ -1,0 +1,18 @@
+{
+  "is_food": true,
+  "dish": "Pollo a la plancha con arroz y ensalada",
+  "confidence": 0.78,
+  "scale_ref": "plate",
+  "needs_context": false,
+  "notes": "Plato llano de unos 26 cm; el arroz ocupa un tercio.",
+  "items": [
+    { "name": "pechuga de pollo a la plancha", "grams": 140, "grams_min": 110, "grams_max": 180, "confidence": 0.8, "hidden": false,
+      "per100": { "kcal": 165, "protein_g": 31, "carbs_g": 0, "fat_g": 3.6, "fiber_g": 0, "sugars_g": 0, "sodium_mg": 74, "sat_fat_g": 1, "iron_mg": 1 } },
+    { "name": "arroz blanco cocido", "grams": 180, "grams_min": 130, "grams_max": 240, "confidence": 0.7, "hidden": false,
+      "per100": { "kcal": 130, "protein_g": 2.7, "carbs_g": 28.2, "fat_g": 0.3, "fiber_g": 0.4, "sugars_g": 0.1, "sodium_mg": 1 } },
+    { "name": "lechuga y tomate", "grams": 60, "grams_min": 40, "grams_max": 90, "confidence": 0.75, "hidden": false,
+      "per100": { "kcal": 17, "protein_g": 1, "carbs_g": 3, "fat_g": 0.2, "fiber_g": 1.2, "sugars_g": 2, "sodium_mg": 10, "vit_c_mg": 12 } },
+    { "name": "aceite de oliva", "grams": 10, "grams_min": 5, "grams_max": 20, "confidence": 0.5, "hidden": true,
+      "per100": { "kcal": 884, "protein_g": 0, "carbs_g": 0, "fat_g": 100, "fiber_g": 0, "sugars_g": 0, "sodium_mg": 2, "sat_fat_g": 13.8 } }
+  ]
+}

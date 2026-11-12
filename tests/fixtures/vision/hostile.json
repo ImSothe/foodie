@@ -1,0 +1,21 @@
+{
+  "is_food": true,
+  "dish": "<script>alert(1)</script>‮plato",
+  "confidence": 7,
+  "scale_ref": "toString",
+  "needs_context": "yes",
+  "notes": "<img src=x onerror=alert(1)>",
+  "__proto__": { "polluted": true },
+  "items": [
+    { "name": "<b>arroz</b>", "grams": 1e9, "grams_min": -5, "grams_max": "lots", "confidence": -3, "hidden": "false",
+      "per100": { "kcal": 130, "protein_g": 2.7, "carbs_g": 28, "fat_g": 0.3, "__proto__": { "polluted": 1 }, "constructor": 5 } },
+    { "name": "", "grams": 100, "per100": { "kcal": 100 } },
+    { "name": "sin calorias", "grams": 100, "per100": { "protein_g": 3 } },
+    { "name": "gramos negativos", "grams": -20, "per100": { "kcal": 100 } },
+    { "name": "gramos texto", "grams": "150", "per100": { "kcal": 100, "protein_g": 5, "carbs_g": 10, "fat_g": 4 } },
+    { "name": "kcal absurdas", "grams": 100, "per100": { "kcal": 99999, "protein_g": 3 } },
+    { "name": "no cuadra", "grams": 100, "per100": { "kcal": 800, "protein_g": 2, "carbs_g": 3, "fat_g": 1 } },
+    "una cadena", null, 42, [],
+    { "name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "grams": 50, "per100": { "kcal": 50, "protein_g": 1, "carbs_g": 10, "fat_g": 0.5 } }
+  ]
+}

@@ -2,7 +2,7 @@
    these cleaners: they return a clean copy or null, never throw, and never trust the input.
 
    days[iso]  = { meals: { [id]: Meal }, waterMl, steps, waterAt?, stepsAt?, deleted?: { [id]: stamp } }
-   Meal       = { id, name, slot, time: 'HH:MM', source, confidence?, updatedAt?, items: [Item] }
+   Meal       = { id, name, slot, time: 'HH:MM', source, confidence?, updatedAt?, thumb?, items: [Item] }
    stamp      = milliseconds since 1970 of the last edit (cloud sync: newest edit wins; `deleted` holds tombstones of removed meals)
    Item       = { name, grams, gramsMin?, gramsMax?, per100 }        (totals are always derived, never stored)
    goals      = [{ from: iso, goals: { kcal, protein_g, carbs_g, fat_g, waterL, steps } }]   (sorted by `from`)
@@ -27,6 +27,8 @@ export const MAX_WEIGHTS = 4000;
 export const MAX_SAVED = 300;
 export const MAX_NAME = 80;
 export const MAX_TOMBSTONES = 500;
+/** Longest data URL of the small JPEG kept with a photo meal (the photo itself is never stored). */
+export const THUMB_MAX_CHARS = 12 * 1024;
 /** Largest edit stamp accepted (the year 3000): anything beyond is not a time. */
 export const MAX_STAMP = 32503680000000;
 export const MAX_ITEM_NAME = 120;
@@ -144,6 +146,7 @@ export const cleanMeal = guard((raw, over) => {
   if (confidence !== null) meal.confidence = confidence;
   const updatedAt = over && 'updatedAt' in over ? cleanStamp(over.updatedAt) : cleanStamp(raw.updatedAt);
   if (updatedAt !== null) meal.updatedAt = updatedAt;
+  if (typeof raw.thumb === 'string' && raw.thumb.length <= THUMB_MAX_CHARS && /^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(raw.thumb)) meal.thumb = raw.thumb;
   return meal;
 }, () => null);
 

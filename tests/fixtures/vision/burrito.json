@@ -1,0 +1,14 @@
+{
+  "is_food": true,
+  "dish": "Burrito envuelto",
+  "confidence": 0.3,
+  "scale_ref": "hand",
+  "needs_context": true,
+  "notes": "No se ve el relleno.",
+  "items": [
+    { "name": "tortilla de trigo", "grams": 70, "grams_min": 50, "grams_max": 90, "confidence": 0.6, "hidden": false,
+      "per100": { "kcal": 310, "protein_g": 8.5, "carbs_g": 52, "fat_g": 7, "fiber_g": 3, "sugars_g": 3, "sodium_mg": 600 } },
+    { "name": "relleno variado (carne, arroz, frijoles)", "grams": 250, "grams_min": 150, "grams_max": 350, "confidence": 0.2, "hidden": true,
+      "per100": { "kcal": 160, "protein_g": 9, "carbs_g": 18, "fat_g": 6, "fiber_g": 3, "sugars_g": 1, "sodium_mg": 350 } }
+  ]
+}

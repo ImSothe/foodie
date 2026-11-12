@@ -64,7 +64,8 @@ export function itemProblem(it) {
 
 export function mealProblem(m) {
   if (!isPlain(m)) return 'meal is not an object';
-  const extra = onlyKeys(m, ['id', 'name', 'slot', 'time', 'source', 'confidence', 'updatedAt', 'items']);
+  const extra = onlyKeys(m, ['id', 'name', 'slot', 'time', 'source', 'confidence', 'updatedAt', 'thumb', 'items']);
+  if ('thumb' in m && !(typeof m.thumb === 'string' && m.thumb.length <= 12288 && m.thumb.startsWith('data:image/jpeg;base64,'))) return 'meal.thumb';
   if (extra.length) return `meal has unknown keys ${extra}`;
   if (!SLOTS.includes(m.slot) || !SOURCES.includes(m.source)) return 'meal slot or source not allowed';
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(m.time)) return `meal.time = ${m.time}`;
@@ -148,7 +149,7 @@ export function profileProblem(p) {
 
 export const validPer100 = () => ({ kcal: 165, protein_g: 31, carbs_g: 0, fat_g: 3.6, fiber_g: 0, sodium_mg: 74, iron_mg: 1 });
 export const validItem = () => ({ name: 'Pollo', grams: 150, gramsMin: 50, gramsMax: 300, per100: validPer100() });
-export const validMeal = (id = 'm1') => ({ id, name: 'Comida', slot: 'Almuerzo', time: '14:00', source: 'db', confidence: 0.8, items: [validItem(), validItem()] });
+export const validMeal = (id = 'm1') => ({ id, name: 'Comida', slot: 'Almuerzo', time: '14:00', source: 'db', confidence: 0.8, thumb: 'data:image/jpeg;base64,/9j/4AAQSkZJRg==', items: [validItem(), validItem()] });
 export const validDay = () => ({ meals: { a: validMeal('a'), b: validMeal('b') }, waterMl: 1500, steps: 4000 });
 export const validDays = () => ({ '2026-11-12': validDay(), '2026-11-11': validDay(), '2026-02-30': validDay() });
 export const validGoals = () => ({ kcal: 2000, protein_g: 150, carbs_g: 200, fat_g: 60, waterL: 2.5, steps: 8000 });
