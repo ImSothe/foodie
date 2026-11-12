@@ -9,9 +9,10 @@ import { h, s } from './dom.js';
  * @param {string} [o.color]  CSS color of the bar (defaults to the text color)
  * @param {string} o.label    what a screen reader announces
  * @param {Node|string} [o.center] content shown inside the ring
+ * @param {boolean} [o.animate] fill in from zero (default) or start already filled, for redraws of what is already on screen
  * @returns {HTMLElement & { set(value:number, label?:string):void }}
  */
-export function ring({ size, stroke, value = 0, color, label, center }) {
+export function ring({ size, stroke, value = 0, color, label, center, animate = true }) {
   const r = (size - stroke) / 2;
   const len = 2 * Math.PI * r;
   const common = { cx: size / 2, cy: size / 2, r, 'stroke-width': stroke };
@@ -28,6 +29,7 @@ export function ring({ size, stroke, value = 0, color, label, center }) {
     if (newLabel) svg.setAttribute('aria-label', newLabel);
   };
   // Start empty and fill on the next frame, so the bar animates in from zero.
-  requestAnimationFrame(() => requestAnimationFrame(() => el.set(value)));
+  if (animate) requestAnimationFrame(() => requestAnimationFrame(() => el.set(value)));
+  else el.set(value);
   return el;
 }

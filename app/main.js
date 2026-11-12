@@ -6,6 +6,8 @@ import { kitScreen } from './ui/screens/kit.js';
 import { progressScreen, savedScreen, settingsScreen } from './ui/screens/simple.js';
 import { isoDate, streak } from './core/dates.js';
 import { DEMO_GOALS, demoMeals, demoLoggedDays } from './data/demo.js';
+import { store } from './data/store.js';
+import { onboardingScreen } from './ui/screens/onboarding.js';
 
 export const APP_VERSION = '0.1.0';
 
@@ -17,10 +19,17 @@ const ROUTES = {
   '/': {
     title: 'Inicio',
     render: () => homeScreen({
-      selected: state.selected, today, goals: DEMO_GOALS, sample: true,
+      selected: state.selected, today, goals: store.goalsFor(state.selected) || DEMO_GOALS, sample: true,
       mealsOf: (iso) => demoMeals(iso, today),
       onSelect: (iso) => { state.selected = iso; render(); },
       onChange: () => render(),
+    }),
+  },
+  '/perfil': {
+    title: 'Tu plan', tab: '/ajustes',
+    render: () => onboardingScreen({
+      store, today, existing: { profile: store.getProfile(), goals: store.goalsFor(today) },
+      onDone: () => { location.hash = '#/ajustes'; }, onCancel: () => { location.hash = '#/ajustes'; },
     }),
   },
   '/progreso': { title: 'Progreso', render: progressScreen },
@@ -77,8 +86,17 @@ function buildChrome() {
 
 let lastPath = null;
 function render() {
+  const onboarding = !store.getProfile();
+  document.body.classList.toggle('is-onboarding', onboarding);
+  if (onboarding) {
+    mount(view, onboardingScreen({ store, today, onDone: () => { location.hash = '#/'; } }));
+    document.title = 'Bienvenida · foodie';
+    lastPath = null;
+    return;
+  }
   const path = currentPath();
   const route = ROUTES[path];
+  if (path === '/perfil' && !store.getProfile()) return;
   mount(view, route.render());
   const activeTab = route.tab || path;
   for (const a of document.querySelectorAll('#tabs .tab')) {
@@ -102,6 +120,7 @@ function registerServiceWorker() {
 }
 
 buildChrome();
+store.subscribe(render);
 render();
 window.addEventListener('hashchange', render);
 registerServiceWorker();
