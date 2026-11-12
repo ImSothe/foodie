@@ -1,48 +1,56 @@
 <!doctype html>
-<!-- Source of the app icon. tools/make_icons.py opens this page in headless Chrome and saves the PNG
-     that the page leaves in <body data-png>.   ?size=192  output size in px   ?pad=1  maskable safe zone -->
+<!-- Source of the app icon: a burger built from the three macros (saffron bun = carbohydrates, salmon patty =
+     protein, blueberry layer = fat) with one bite taken. tools/make_icons.py opens this page in headless Chrome
+     and saves the PNG the page leaves in <body data-png>.   ?size=192  output size in px   ?pad=1  maskable safe zone -->
 <html>
 <head>
 <meta charset="utf-8">
-<style>
-  @font-face { font-family: "Bricolage"; src: url("../app/fonts/bricolage-grotesque-latin-wght.woff2") format("woff2"); font-weight: 200 800; }
-  body { margin: 0; background: #0A0A0C; font-family: "Bricolage"; font-weight: 800; }
-</style>
+<style>body { margin: 0; background: #0A0A0C; }</style>
 </head>
 <body>
 <canvas id="c"></canvas>
 <script>
-  (async function () {
+  (function () {
     const q = new URLSearchParams(location.search);
     const size = Number(q.get('size')) || 512;
-    const k = size / 512;
     const c = document.getElementById('c');
     c.width = c.height = size;
     const x = c.getContext('2d');
-    await document.fonts.load('800 250px "Bricolage"');
-
     x.fillStyle = '#0A0A0C';
     x.fillRect(0, 0, size, size);
+
+    // The burger is drawn on its own layer (512 px design grid) so the bite can cut through every layer at once.
+    const layer = document.createElement('canvas');
+    layer.width = layer.height = 512;
+    const b = layer.getContext('2d');
+    const CARBS = '#F5B83D', PROTEIN = '#FF6B6B', FAT = '#7AA2FF';
+    const bar = (color, left, top, width, height, radii) => {
+      b.fillStyle = color;
+      b.beginPath();
+      b.roundRect(left, top, width, height, radii);
+      b.fill();
+    };
+    b.translate(0, -18);
+    b.fillStyle = CARBS;                       // top bun
+    b.beginPath();
+    b.ellipse(256, 232, 148, 124, 0, Math.PI, 0);
+    b.closePath();
+    b.fill();
+    bar(FAT, 88, 256, 336, 30, 15);
+    bar(PROTEIN, 104, 306, 304, 54, 27);
+    bar(CARBS, 112, 380, 288, 60, [8, 8, 44, 44]);   // bottom bun
+
+    b.globalCompositeOperation = 'destination-out';  // the bite, top right
+    for (const [cx, cy, r] of [[404, 150, 54], [440, 214, 40], [352, 108, 30]]) {
+      b.beginPath();
+      b.arc(cx, cy, r, 0, Math.PI * 2);
+      b.fill();
+    }
+
+    const k = (size / 512) * (q.has('pad') ? 0.78 : 1);
     x.translate(size / 2, size / 2);
     x.scale(k, k);
-    if (q.has('pad')) x.scale(0.78, 0.78);
-
-    // the ring of the day, split into the three macros
-    const TAU = Math.PI * 2, arc = TAU * (266 / 1056), gap = TAU / 3, start = -Math.PI / 2 + TAU * (43 / 1056);
-    x.lineWidth = 44;
-    x.lineCap = 'round';
-    ['#FF6B6B', '#F5B83D', '#7AA2FF'].forEach((color, i) => {
-      x.strokeStyle = color;
-      x.beginPath();
-      x.arc(0, 0, 168, start + i * gap, start + i * gap + arc);
-      x.stroke();
-    });
-
-    x.fillStyle = '#F6F5F2';
-    x.font = '800 250px "Bricolage"';
-    x.textAlign = 'center';
-    x.fillText('f', 0, 80);
-
+    x.drawImage(layer, -256, -256);
     document.body.dataset.png = c.toDataURL('image/png');
   })();
 </script>
