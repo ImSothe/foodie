@@ -10,6 +10,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 export const APP_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'app');
 const TEXT = new Set(['.html', '.js', '.css', '.json', '.webmanifest', '.svg', '.txt']);
 const SKIP = new Set(['sw.js']);          // the worker never caches itself
+const LAZY_DIR = 'vendor/lazy/';     // big optional files (the WebAssembly barcode reader): cached the first time they are used, not at install
 const SKIP_EXT = new Set(['.txt']);       // licence notices are published but not needed offline
 
 export function listAppFiles(dir = APP_DIR, prefix = '') {
@@ -31,11 +32,16 @@ export function computeStamp() {
     if (TEXT.has(extname(rel))) data = Buffer.from(data.toString('utf8').replace(/\r\n/g, '\n'), 'utf8');
     hash.update(rel).update('\0').update(data).update('\0');
   }
-  return { version: hash.digest('hex').slice(0, 12), shell: ['./', ...files.map((f) => `./${f}`)] };
+  const isLazy = (rel) => rel.startsWith(LAZY_DIR);
+  return {
+    version: hash.digest('hex').slice(0, 12),
+    shell: ['./', ...files.filter((f) => !isLazy(f)).map((f) => `./${f}`)],
+    lazy: files.filter(isLazy).map((f) => `./${f}`),
+  };
 }
 
-export function stampBlock({ version, shell }) {
-  return `/* stamp:start */\nconst VERSION = '${version}';\nconst SHELL = ${JSON.stringify(shell, null, 2)};\n/* stamp:end */`;
+export function stampBlock({ version, shell, lazy }) {
+  return `/* stamp:start */\nconst VERSION = '${version}';\nconst SHELL = ${JSON.stringify(shell, null, 2)};\nconst LAZY = ${JSON.stringify(lazy, null, 2)};\n/* stamp:end */`;
 }
 
 const BLOCK = /\/\* stamp:start \*\/[\s\S]*?\/\* stamp:end \*\//;

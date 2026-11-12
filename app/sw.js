@@ -3,7 +3,7 @@
    origins (sign-in, cloud sync, food databases, AI) are never intercepted.
    The block below is written by `npm run stamp`; a test fails if it is out of date. */
 /* stamp:start */
-const VERSION = 'f6b03f075659';
+const VERSION = 'a1c9164420ae';
 const SHELL = [
   "./",
   "./boot.js",
@@ -17,12 +17,17 @@ const SHELL = [
   "./core/router.js",
   "./core/schema.js",
   "./core/search.js",
+  "./core/serving.js",
   "./css/base.css",
   "./css/components.css",
   "./css/tokens.css",
+  "./data/camera.js",
   "./data/cloud.js",
   "./data/firebase-config.js",
   "./data/foods.es.json",
+  "./data/image.js",
+  "./data/off-client.js",
+  "./data/scanner.js",
   "./data/store.js",
   "./fonts/bricolage-grotesque-latin-wght.woff2",
   "./icons/apple-touch-icon.png",
@@ -35,24 +40,33 @@ const SHELL = [
   "./ui/daystrip.js",
   "./ui/dom.js",
   "./ui/fields.js",
+  "./ui/grams-control.js",
   "./ui/icons.js",
   "./ui/meal-editor.js",
+  "./ui/meal-parts.js",
   "./ui/ring.js",
   "./ui/scan-frame.js",
   "./ui/screens/add-food.js",
+  "./ui/screens/camera.js",
   "./ui/screens/cloud-card.js",
   "./ui/screens/home.js",
   "./ui/screens/kit.js",
   "./ui/screens/onboarding.js",
+  "./ui/screens/product.js",
   "./ui/screens/progress.js",
   "./ui/screens/saved.js",
   "./ui/screens/settings.js",
   "./vendor/firebase.js"
 ];
+const LAZY = [
+  "./vendor/lazy/barcode-detector.js",
+  "./vendor/lazy/zxing_reader.wasm"
+];
 /* stamp:end */
 
 const CACHE = `foodie-${VERSION}`;
-const SHELL_URLS = new Set(SHELL.map((url) => new URL(url, self.location).href));
+// SHELL is cached at install; LAZY files (big, optional) are cached the first time they are fetched. Both are files of this app.
+const SHELL_URLS = new Set([...SHELL, ...LAZY].map((url) => new URL(url, self.location).href));
 const inShell = (url) => { const u = new URL(url); u.search = ''; u.hash = ''; return SHELL_URLS.has(u.href); };
 
 self.addEventListener('install', (e) => {
