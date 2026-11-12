@@ -10,17 +10,20 @@ import { onboardingScreen } from './ui/screens/onboarding.js';
 import { openAddFood } from './ui/screens/add-food.js';
 import { openCameraView } from './ui/screens/camera.js';
 import { openProduct } from './ui/screens/product.js';
+import { openPhoto } from './ui/screens/photo.js';
 import { isoDate, streak } from './core/dates.js';
 import { resolveRoute } from './core/router.js';
 import { store, isStoreKey } from './data/store.js';
 import { createCloud } from './data/cloud.js';
 import { createOffClient } from './data/off-client.js';
+import { createVision } from './data/vision.js';
 
 export const APP_VERSION = '0.2.0';
 
 const today = isoDate();
 const cloud = createCloud({ store });
 const offClient = createOffClient({ store });
+const vision = createVision({ cloud });
 const state = { selected: today };
 const view = $('#view');
 
@@ -73,7 +76,7 @@ function openCapture(mode = 'photo') {
     mode,
     onSearch: openSearch,
     onCode: (code) => openProduct({ store, day: addDay(), code, offClient, onSearch: () => openSearch(), onPhoto: () => openCapture('photo') }),
-    onPhoto: () => toast('El análisis de fotos todavía no está disponible en esta versión'),
+    onPhoto: (picture, { label }) => openPhoto({ store, day: addDay(), cloud, vision, picture, label, onSearch: () => openSearch(), onRetake: (m) => openCapture(m) }),
   });
 }
 

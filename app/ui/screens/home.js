@@ -153,7 +153,7 @@ function microPanel(totals, meals, targets) {
 function mealRow(meal, onOpen) {
   const { totals } = sumItems(meal.items);
   return h('li', null, h('button', { type: 'button', class: 'card meal', onClick: () => onOpen(meal) },
-    h('span', { class: 'meal-thumb' }, icon(SOURCE_ICON[meal.source] || 'search', 24)),
+    h('span', { class: 'meal-thumb' }, meal.thumb ? h('img', { src: meal.thumb, alt: '', width: 66, height: 66 }) : icon(SOURCE_ICON[meal.source] || 'search', 24)),
     h('span', { class: 'meal-body' },
       h('span', { class: 'meal-name' }, meal.name),
       h('span', { class: 'small muted' }, `${meal.slot}, ${meal.time}`),

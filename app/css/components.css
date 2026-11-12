@@ -859,3 +859,17 @@ span.cam-side { background: none; }
 .grams-control { display: grid; gap: 14px; }
 .grams-control .totals { margin-bottom: 0; }
 .credit { text-align: center; padding: 0 8px; }
+
+/* ---------- photo analysis ---------- */
+.photo { display: grid; gap: 14px; }
+.photo-preview { overflow: hidden; border-radius: var(--r-lg); background: var(--inset); aspect-ratio: 4 / 3; }
+.photo-preview img { width: 100%; height: 100%; object-fit: cover; }
+.photo-card { display: grid; gap: 10px; }
+.photo-card.card { padding: 18px; }
+.photo-head { display: flex; align-items: center; gap: 14px; }
+.photo-head .photo-preview { flex: none; width: 76px; height: 76px; aspect-ratio: 1; border-radius: var(--r-md); }
+.photo-title { flex: 1; min-width: 0; display: grid; gap: 6px; }
+.photo-title .input { min-height: 48px; font-size: 17px; }
+.photo-confidence { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: var(--ink-2); }
+.photo-confidence.is-low { color: var(--warn); }
+.photo-warn { color: var(--warn); font-weight: 600; }

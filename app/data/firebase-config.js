@@ -10,7 +10,7 @@ export const FIREBASE_CONFIG = {
   appId: '1:1002575178330:web:28908d221c7526b0518663',
 };
 
-/* The reCAPTCHA v3 site key that App Check uses to prove that a request to Firebase AI Logic comes from this web app.
+/* The reCAPTCHA Enterprise (Fraud Defense) site key that App Check uses to prove that a request to Firebase AI Logic comes from this web app.
    Like the config above it is public by design (it ships to every browser); the secret half stays in the Firebase console.
-   Empty until it is registered: the photo analysis then says "La IA no está configurada todavía" instead of failing. */
+   If it were empty the photo analysis would say "La IA no está configurada todavía" instead of failing. */
 export const APP_CHECK_SITE_KEY = '6LcZbB0uAAAAACTr-zdEyvpWn0ZJDYO-VO5arj4k';

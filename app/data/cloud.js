@@ -20,6 +20,7 @@ export function createCloud({ store, loadSdk = () => import('../vendor/firebase.
   const listeners = new Set();
   let sdk = null;
   let sdkPromise = null;
+  let app = null;
   let auth = null;
   let db = null;
   let user = null;
@@ -37,7 +38,7 @@ export function createCloud({ store, loadSdk = () => import('../vendor/firebase.
     if (sdk) return sdk;
     sdkPromise ||= loadSdk().then((m) => {
       sdk = m;
-      const app = m.initializeApp(config);
+      app = m.initializeApp(config);
       auth = m.initializeAuth(app, { persistence: [m.indexedDBLocalPersistence, m.browserLocalPersistence], popupRedirectResolver: m.browserPopupRedirectResolver });
       db = m.getFirestore(app);
       m.onAuthStateChanged(auth, onAuth);
@@ -147,6 +148,8 @@ export function createCloud({ store, loadSdk = () => import('../vendor/firebase.
     onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },
     /** Call when the sign-in card is shown, so the popup can open straight from the tap (browsers block popups that follow a wait). */
     prepare,
+    /** The loaded SDK and the Firebase app, for the parts that need them besides sync (the photo analysis). */
+    async firebase() { const m = await prepare(); return { sdk: m, app }; },
     /** Start in the background if this device was signed in before; costs nothing otherwise. */
     start() { const info = store.getSyncInfo(); if (info.uid && info.lastPull > 0) prepare().catch((e) => set('error', (e && e.code) || 'load')); },
     async signIn() {

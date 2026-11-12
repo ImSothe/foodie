@@ -178,8 +178,11 @@ test('connect-src is exactly the allowed list: adding a host must be a deliberat
   //   identitytoolkit.googleapis.com  sign-in requests          securetoken.googleapis.com  refreshing the sign-in token
   //   firestore.googleapis.com        reading and writing the user's own documents
   //   world.openfoodfacts.org         looking a scanned barcode up in Open Food Facts (one GET, only the fields the app uses)
+  //   firebasevertexai.googleapis.com the Firebase AI Logic endpoint the SDK calls for the photo analysis (seen in the requests of a real call)
+  //   content-firebaseappcheck.googleapis.com  App Check: exchange of the reCAPTCHA Enterprise result for a token (seen in a real run with the site key)
+  //   www.google.com                  reCAPTCHA Enterprise (App Check) posts to /recaptcha/enterprise/clr (seen in a real run)
   // Adding a host must be a deliberate change to this test, with a line saying why.
-  const ALLOWED_CONNECT_SRC = ["'self'", 'https://identitytoolkit.googleapis.com', 'https://securetoken.googleapis.com', 'https://firestore.googleapis.com', 'https://world.openfoodfacts.org'];
+  const ALLOWED_CONNECT_SRC = ["'self'", 'https://identitytoolkit.googleapis.com', 'https://securetoken.googleapis.com', 'https://firestore.googleapis.com', 'https://world.openfoodfacts.org', 'https://content-firebaseappcheck.googleapis.com', 'https://firebasevertexai.googleapis.com', 'https://www.google.com'];
   const m = html.match(/http-equiv="Content-Security-Policy" content="([^"]+)"/);
   const csp = Object.fromEntries(m[1].split(';').map((d) => d.trim().split(/\s+/)).map(([name, ...v]) => [name, v]));
   assert.deepEqual(csp['connect-src'], ALLOWED_CONNECT_SRC);
@@ -187,9 +190,12 @@ test('connect-src is exactly the allowed list: adding a host must be a deliberat
   // apis.google.com: the helper script that Firebase Auth loads to open the Google sign-in popup. Nothing else may run.
   // 'wasm-unsafe-eval': the barcode reader (ZXing compiled to WebAssembly, vendored in app/vendor/lazy/) cannot be instantiated without it; verified in
   // Chromium: with it removed the browser reports "script-src | wasm-eval" and the reader never starts. It allows WebAssembly only, not eval().
-  assert.deepEqual(csp['script-src'], ["'self'", "'wasm-unsafe-eval'", 'https://apis.google.com']);
+  // www.google.com (recaptcha/enterprise.js) and www.gstatic.com (the reCAPTCHA scripts it loads): App Check proves that a request to the AI endpoint comes from
+  // this app. Each was removed in turn in Chromium and produced a script-src-elem violation, so each is needed; nothing else is allowed.
+  assert.deepEqual(csp['script-src'], ["'self'", "'wasm-unsafe-eval'", 'https://apis.google.com', 'https://www.google.com', 'https://www.gstatic.com']);
   // The sign-in page of this Firebase project, embedded by the Auth SDK to receive the result of the popup.
-  assert.deepEqual(csp['frame-src'], ['https://foodie-6b6da.firebaseapp.com']);
+  // www.google.com: the reCAPTCHA Enterprise iframe (/recaptcha/enterprise/anchor) (removing it produced a frame-src violation).
+  assert.deepEqual(csp['frame-src'], ['https://foodie-6b6da.firebaseapp.com', 'https://www.google.com']);
   // images.openfoodfacts.org: the product picture on the scanned-product screen (and the only external host an <img src> may name, see ui/dom.js).
   assert.deepEqual(csp['img-src'], ["'self'", 'data:', 'blob:', 'https://images.openfoodfacts.org']);
   assert.deepEqual(csp['default-src'], ["'none'"]);
@@ -259,4 +265,33 @@ test('secrets stay local: .secrets/ and key files are git-ignored, and no secret
   const keys = config.match(/\b6L[0-9A-Za-z_-]{38}\b/g) || [];
   assert.ok(keys.length <= 1, 'firebase-config.js should hold at most the one public site key');
   assert.ok(keys.length === 0 || /APP_CHECK_SITE_KEY\s*=\s*'6L/.test(config), 'the reCAPTCHA key in the config must be the APP_CHECK_SITE_KEY (the public one), nothing else');
+});
+
+test('App Check debug token: named only in data/vision.js, and only switched on for localhost', () => {
+  for (const f of [...ownJs, 'sw.js', 'boot.js']) {
+    const code = appSource(f);
+    if (f === 'data/vision.js') {
+      assert.ok(/if \(isLocalhost\(win\)\) globalThis\.FIREBASE_APPCHECK_DEBUG_TOKEN = true/.test(code), 'the debug token is set behind the localhost check');
+      assert.equal([...code.matchAll(/FIREBASE_APPCHECK_DEBUG_TOKEN/g)].length, 1, 'and nowhere else in the file');
+      assert.ok(/\^\(localhost\|127\\\.0\\\.0\\\.1\)\$/.test(code), 'isLocalhost matches the whole host name, not a suffix');
+    } else assert.ok(!/APPCHECK_DEBUG/.test(code), `${f} touches the App Check debug token`);
+  }
+});
+
+test('photos are never stored: the photo screen and the vision module only hand a meal (with at most a small thumbnail) to the store', () => {
+  const photo = appSource('ui/screens/photo.js');
+  const vision = appSource('data/vision.js');
+  for (const code of [photo, vision]) {
+    assert.ok(!/localStorage|sessionStorage|indexedDB|caches\b/.test(code));
+    assert.ok(!/\.setItem\(/.test(code));
+  }
+  assert.deepEqual([...new Set([...photo.matchAll(/store\.(\w+)\(/g)].map((m) => m[1]))].sort(), ['addMeal', 'deleteMeal']);
+  assert.ok(/thumbnailDataUrl/.test(vision) && /thumb/.test(photo), 'only the thumbnail path leaves the screen');
+});
+
+test('the AI call path requires a signed-in person in the module that makes it', () => {
+  const vision = appSource('data/vision.js');
+  const signedOut = vision.indexOf("reason: 'signed-out'");
+  const firstFirebase = vision.indexOf('await ensureModel()');
+  assert.ok(signedOut > 0 && firstFirebase > 0 && vision.indexOf('if (!cloud.user)') < firstFirebase, 'the sign-in check comes before Firebase is touched');
 });
