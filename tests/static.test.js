@@ -194,7 +194,11 @@ test('connect-src is exactly the allowed list: adding a host must be a deliberat
 test('app code never contacts another origin: no absolute URLs and no network API besides fetch of own files', () => {
   for (const f of [...ownJs, 'sw.js']) {
     const code = appSource(f);
-    assert.ok(!/https?:\/\//.test(code.replace(/http:\/\/www\.w3\.org\/2000\/svg/g, '')), `${f} has an absolute URL`);
+    // The only absolute URLs in app code: the SVG namespace, and Open Food Facts in off.js (the API host and the host its product images
+    // must come from; both are also pinned in the CSP test above). Anything else, anywhere else, fails.
+    const withoutAllowed = code.replace(/http:\/\/www\.w3\.org\/2000\/svg/g, '')
+      .replace(f === 'core/off.js' ? /https:\/\/(world|images)\.openfoodfacts\.org/g : /$^/g, '');
+    assert.ok(!/https?:\/\//.test(withoutAllowed), `${f} has an absolute URL`);
     assert.ok(!/\b(XMLHttpRequest|WebSocket|EventSource|sendBeacon|importScripts)\b/.test(code), `${f} uses a network API that is not allowed yet`);
     for (const m of code.matchAll(/\bfetch\(\s*([^)]*)\)/g)) assert.ok(/^(FOODS_URL|req\b)/.test(m[1].trim()), `${f}: fetch(${m[1]})`);
   }
