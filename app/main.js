@@ -9,7 +9,8 @@ import { settingsScreen } from './ui/screens/settings.js';
 import { onboardingScreen } from './ui/screens/onboarding.js';
 import { openAddFood } from './ui/screens/add-food.js';
 import { isoDate, streak } from './core/dates.js';
-import { store } from './data/store.js';
+import { resolveRoute } from './core/router.js';
+import { store, isStoreKey } from './data/store.js';
 
 export const APP_VERSION = '0.2.0';
 
@@ -61,10 +62,8 @@ const ADD_OPTIONS = [
   { icon: 'search', title: 'Buscar alimento', text: 'Alimentos básicos de España, con sus gramos', run: () => openAddFood({ store, day: state.selected > today ? today : state.selected, today }) },
 ];
 
-const currentPath = () => {
-  const p = location.hash.replace(/^#/, '') || '/';
-  return ROUTES[p] ? p : '/';
-};
+const ROUTE_NAMES = Object.keys(ROUTES);
+const currentPath = () => resolveRoute(location.hash, ROUTE_NAMES);
 
 function openAddMenu() {
   const sheet = openSheet({
@@ -139,9 +138,11 @@ function registerServiceWorker() {
 
 buildChrome();
 store.subscribe(() => render(false));
-store.onStorageError(() => toast('Este navegador no deja guardar datos. Lo que añadas se perderá al cerrar la página.'));
+store.onStorageError((error) => toast(error.kind === 'write'
+  ? 'Este navegador no deja guardar datos. Lo que añadas se perderá al cerrar la página.'
+  : 'Había datos guardados que no se pudieron leer y se han ignorado. Si faltan comidas, exporta tus datos desde Ajustes antes de seguir.'));
 // Another tab changed the data: read it again.
-window.addEventListener('storage', (e) => { if (e.key === null || e.key.startsWith('fd.')) store.reload(); });
+window.addEventListener('storage', (e) => { if (isStoreKey(e.key)) store.reload(); });
 window.addEventListener('hashchange', () => render(true));
 render(true);
 registerServiceWorker();
