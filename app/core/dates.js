@@ -54,3 +54,12 @@ export function streak(loggedDays, today = isoDate()) {
   while (set.has(day)) { n += 1; day = addDays(day, -1); }
   return n;
 }
+
+/** "noviembre de 2026" (month is 0-11). */
+export const monthTitle = (year, month) => `${MONTHS[month]} de ${year}`;
+
+/** "7 nov". */
+export const shortDate = (iso) => {
+  const d = parse(iso);
+  return `${d.getDate()} ${MONTHS[d.getMonth()].slice(0, 3)}`;
+};
