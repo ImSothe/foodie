@@ -1,8 +1,10 @@
 # foodie
 
-A mobile-first PWA to track calories, macros, vitamins and minerals without weighing your food. Log a meal, then fix the portion with a slider: every number is recalculated on the device, instantly.
+[![Open the app](https://img.shields.io/badge/%E2%96%B6%20Open%20the%20app-imsothe.github.io%2Ffoodie-111111?style=for-the-badge)](https://imsothe.github.io/foodie/)
 
-**Live app:** https://imsothe.github.io/foodie/ (free, no download: open it on your phone and add it to the home screen)
+**Try it now: https://imsothe.github.io/foodie/** (free, nothing to install; "Continuar con Google" in Settings is optional and only needed for the cloud copy and photo analysis)
+
+A mobile-first PWA to track calories, macros, vitamins and minerals without weighing your food. Log a meal, then fix the portion with a slider: every number is recalculated on the device, instantly.
 
 **Try it in a minute** (no account needed):
 
