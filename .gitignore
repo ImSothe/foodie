@@ -6,3 +6,8 @@ node_modules/
 CLAUDE.md
 .firebase/
 *.local
+.secrets/
+Llave*.txt
+llave*.txt
+*.key
+*.pem

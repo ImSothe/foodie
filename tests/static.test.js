@@ -104,7 +104,7 @@ test('repository: no runtime dependencies, no secrets and no personal data track
   const secret = [/AIza[0-9A-Za-z_-]{35}/, /-----BEGIN [A-Z ]*PRIVATE KEY-----/, /gh[pousr]_[A-Za-z0-9]{30,}/, /sk-[A-Za-z0-9]{32,}/,
     /[A-Za-z0-9._%+-]+@(gmail|hotmail|outlook|yahoo|icloud)\.[a-z.]+/i, /[A-Z]:\\Users\\/];
   for (const f of files) {
-    assert.ok(!/(^|\/)(\.env.*|.*\.pem|.*\.key|CLAUDE\.md|\.claude\/.*)$/i.test(f), `sensitive file tracked: ${f}`);
+    assert.ok(!/(^|\/)(\.env.*|.*\.pem|.*\.key|CLAUDE\.md|\.claude\/.*|\.secrets\/.*|llave.*\.txt)$/i.test(f), `sensitive file tracked: ${f}`);
     if (/\.(png|woff2)$/.test(f) || f === 'tests/static.test.js') continue;
     const text = readFileSync(join(ROOT, f), 'utf8');
     for (const re of secret) {
@@ -242,4 +242,16 @@ test('main.js resolves routes through resolveRoute and never indexes ROUTES with
   assert.ok(/resolveRoute\(/.test(main));
   assert.ok(!/ROUTES\[\s*p\s*\]/.test(main));
   assert.ok(!/ROUTES\[[^\]]*hash/.test(main));
+});
+
+test('secrets stay local: .secrets/ and key files are git-ignored, and no secret-looking key is anywhere in the tracked files', () => {
+  const ignore = readFileSync(join(ROOT, '.gitignore'), 'utf8').split(/\r?\n/);
+  for (const entry of ['.secrets/', 'Llave*.txt', 'llave*.txt', '*.key', '*.pem', '.env*']) assert.ok(ignore.includes(entry), `.gitignore must list ${entry}`);
+  let files;
+  try { files = execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8' }).split('\n').filter(Boolean); } catch (e) { return; }
+  // reCAPTCHA keys are 40 characters starting with 6L. The public site key may be shipped one day; the secret key never.
+  for (const f of files) {
+    if (/\.(png|woff2)$/.test(f) || f === 'tests/static.test.js') continue;
+    assert.ok(!/\b6L[0-9A-Za-z_-]{38}\b/.test(readFileSync(join(ROOT, f), 'utf8')), `a reCAPTCHA-style key is in ${f}`);
+  }
 });
