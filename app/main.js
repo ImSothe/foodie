@@ -1,5 +1,5 @@
 /* foodie · app shell: routes, tab bar, the "+" menu, first-run onboarding and the service worker. */
-import { h, $, mount, openSheet, toast } from './ui/dom.js';
+import { h, $, mount, toast } from './ui/dom.js';
 import { icon } from './ui/icons.js';
 import { homeScreen } from './ui/screens/home.js';
 import { kitScreen } from './ui/screens/kit.js';
@@ -8,15 +8,19 @@ import { savedScreen } from './ui/screens/saved.js';
 import { settingsScreen } from './ui/screens/settings.js';
 import { onboardingScreen } from './ui/screens/onboarding.js';
 import { openAddFood } from './ui/screens/add-food.js';
+import { openCameraView } from './ui/screens/camera.js';
+import { openProduct } from './ui/screens/product.js';
 import { isoDate, streak } from './core/dates.js';
 import { resolveRoute } from './core/router.js';
 import { store, isStoreKey } from './data/store.js';
 import { createCloud } from './data/cloud.js';
+import { createOffClient } from './data/off-client.js';
 
 export const APP_VERSION = '0.2.0';
 
 const today = isoDate();
 const cloud = createCloud({ store });
+const offClient = createOffClient({ store });
 const state = { selected: today };
 const view = $('#view');
 
@@ -26,7 +30,7 @@ const ROUTES = {
   '/': {
     title: 'Inicio',
     render: (fresh) => homeScreen({
-      store, selected: state.selected, today, fresh, onAdd: openAddMenu,
+      store, selected: state.selected, today, fresh, onAdd: () => openCapture(),
       onSelect: (iso) => { state.selected = iso; render(false); },
       onChange: () => render(false),
     }),
@@ -56,25 +60,20 @@ const TABS = [
   { path: '/ajustes', label: 'Ajustes', icon: 'settings' },
 ];
 
-const soon = () => toast('Todavía no disponible en esta versión');
-const ADD_OPTIONS = [
-  { icon: 'camera', title: 'Foto del plato', text: 'La IA estima los ingredientes y sus gramos', run: soon },
-  { icon: 'barcode', title: 'Código de barras', text: 'Datos exactos del envase', run: soon },
-  { icon: 'label', title: 'Etiqueta nutricional', text: 'Lee la tabla de un envase sin código', run: soon },
-  { icon: 'search', title: 'Buscar alimento', text: 'Alimentos básicos de España, con sus gramos', run: () => openAddFood({ store, day: state.selected > today ? today : state.selected, today }) },
-];
-
 const ROUTE_NAMES = Object.keys(ROUTES);
 const currentPath = () => resolveRoute(location.hash, ROUTE_NAMES);
 
-function openAddMenu() {
-  const sheet = openSheet({
-    title: 'Añadir comida',
-    content: h('ul', { class: 'options' }, ADD_OPTIONS.map((o) => h('li', null,
-      h('button', { type: 'button', class: 'option', onClick: () => { sheet.close(); o.run(); } },
-        h('span', { class: 'option-icon' }, icon(o.icon, 24)),
-        h('span', { class: 'option-text' }, h('span', { class: 'option-title' }, o.title), h('span', { class: 'small muted' }, o.text)),
-        icon('right', 20))))),
+/** The day a new meal goes to: the one on screen, never one that has not happened yet. */
+const addDay = () => (state.selected > today ? today : state.selected);
+const openSearch = (notice = '') => openAddFood({ store, day: addDay(), today, notice });
+
+/** "+": the camera opens straight away. Code reads a barcode on its own, Foto and Etiqueta take a picture, Buscar leaves for the search. */
+function openCapture(mode = 'photo') {
+  openCameraView({
+    mode,
+    onSearch: openSearch,
+    onCode: (code) => openProduct({ store, day: addDay(), code, offClient, onSearch: () => openSearch(), onPhoto: () => openCapture('photo') }),
+    onPhoto: () => toast('El análisis de fotos todavía no está disponible en esta versión'),
   });
 }
 
@@ -82,7 +81,7 @@ const streakDays = h('span', { class: 'num' }, '0');
 function buildChrome() {
   mount($('#tabs'), h('div', { class: 'frame' }, TABS.map((t) => (t
     ? h('a', { class: 'tab', href: `#${t.path}`, dataset: { path: t.path } }, icon(t.icon, 24), h('span', null, t.label))
-    : h('button', { type: 'button', class: 'fab', 'aria-label': 'Añadir comida', onClick: openAddMenu }, icon('plus', 28))))));
+    : h('button', { type: 'button', class: 'fab', 'aria-label': 'Añadir comida con la cámara', onClick: () => openCapture() }, icon('plus', 28))))));
 
   mount($('#top-actions'), h('span', { class: 'streak', title: 'Días seguidos registrando' },
     icon('flame', 18, true), streakDays, h('span', { class: 'sr-only' }, ' días seguidos')));

@@ -97,6 +97,7 @@ export function settingsScreen({ store, cloud, version, today }) {
     h('a', { class: 'card link-row', href: '#/kit' },
       h('span', null, h('span', { class: 'link-title' }, 'Sistema de diseño'), h('span', { class: 'small muted' }, 'Colores, tipografía y componentes de la app')),
       icon('right', 22)),
+    h('p', { class: 'small muted credit' }, 'Los datos de los productos que escaneas vienen de Open Food Facts (openfoodfacts.org), bajo licencia ODbL. Los alimentos básicos, de USDA FoodData Central.'),
     h('p', { class: 'small muted version' }, `foodie ${version}`),
   ];
 }

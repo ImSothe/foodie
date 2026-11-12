@@ -10,7 +10,7 @@ A mobile-first PWA to track calories, macros, vitamins and minerals without weig
 2. Install it: on iPhone, Safari, Share, *Add to Home Screen*. On Android, Chrome, menu, *Install app*.
 3. Answer the few questions, then tap `+` and search a food. Tap a meal to move the sliders and watch the numbers change.
 
-What works today: everything above, plus an optional "Continuar con Google" in Settings to keep a copy in the cloud. What does not exist yet: logging by photo, barcode or label (the `+` options for those show a notice). See [Where it stands](#where-it-stands) for the honest list.
+What works today: everything above, plus an optional "Continuar con Google" in Settings to keep a copy in the cloud. Tapping `+` now opens the camera: the Código mode reads a barcode and shows the product from Open Food Facts. Logging by photo (AI) and by nutrition label does not exist yet: the camera takes the picture, then says so. See [Where it stands](#where-it-stands) for the honest list.
 
 <p>
   <img src="docs/img/home-dark.png" alt="Home in dark mode: calories left, macro rings, water and the week strip" width="250">
@@ -69,7 +69,8 @@ Built in steps. This list only contains what exists.
 | 3a | Local-first app: profile and goals, daily log, food search, favourites, water, steps, progress, export | Done |
 | 3b | Security hardening and the security test suite | Done |
 | 3c | Google sign-in and cloud copy: built and tested with two simulated devices, sign-in verified up to Google's account page; a full sign-in with a real account is still to be exercised | Built, needs a real-account test |
-| 4 | Camera: photo analysis with AI, barcode (Open Food Facts), nutrition label | Planned |
+| 4a | Camera-first `+` and barcode scanning with Open Food Facts | Built; tested with a simulated camera, real scanning on a phone still to be exercised |
+| 4b | Photo analysis with AI, nutrition label | Planned |
 
 What works today, all on your device:
 
@@ -81,7 +82,9 @@ What works today, all on your device:
 
 - **Cloud copy (optional):** one button in Settings, "Continuar con Google". Meals, water, steps, favourites, weights, goals and profile sync between devices; the newest edit wins and a deletion on one phone reaches the others. The app works the same without an account.
 
-Not there yet: the three camera options of the `+` menu (photo, barcode, label), which show a notice. Steps are typed by hand.
+- **Camera and barcode:** `+` opens the rear camera at once, with four modes at the bottom: Foto, Código, Etiqueta, Buscar. In Código the barcode (EAN-13, EAN-8, UPC-A, UPC-E, or a QR that holds a product number) is read on its own, the product is looked up in Open Food Facts, and one button adds it. The browser's own barcode detector is used when it has one; otherwise a WebAssembly reader (about 0.4 MB, vendored, downloaded only the first time it is needed). Products you have scanned are remembered on the device, so a repeat scan is instant and works offline. Without camera permission, `+` still works: you can type the code, choose a photo from the gallery, or search.
+
+Not there yet: the AI analysis of a photo, and reading a nutrition label (the Etiqueta mode takes the same picture as Foto and then shows a notice). Steps are typed by hand.
 
 ## Testing and security
 
@@ -141,6 +144,8 @@ The service worker is off on localhost so you always get fresh files; add `?sw=1
 
 - The home screen layout follows a pattern common to photo calorie trackers. foodie is an independent project with its own design, name and code.
 - Food composition: U.S. Department of Agriculture, Agricultural Research Service. FoodData Central, SR Legacy (public domain, CC0). Available from https://fdc.nal.usda.gov/. Cross-checked against BEDCA, the Spanish food composition database, whose values are not reproduced here.
+- Barcode lookups: product data from [Open Food Facts](https://world.openfoodfacts.org), made available under the Open Database Licence (ODbL), contributors credited by Open Food Facts. The data is not stored by foodie except the products you scan, kept on your device.
+- Barcode reading: the `barcode-detector` ponyfill (MIT) and `zxing-wasm` (MIT), a build of ZXing-C++ (Apache-2.0), vendored in `app/vendor/lazy/` with their licences.
 - Reference intakes: Regulation (EU) No 1169/2011 and EFSA dietary reference values.
 - Typeface: [Bricolage Grotesque](https://github.com/ateliertriay/bricolage), SIL Open Font License 1.1.
 - Built with AI coding assistants. I set the goal, the constraints and the acceptance criteria, reviewed the output, and had it verified in a browser and by tests before anything was published.

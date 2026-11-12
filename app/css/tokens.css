@@ -91,3 +91,6 @@
 @media (prefers-reduced-motion: reduce) {
   :root { --t-fast: 0s; --t-ring: 0s; }
 }
+
+/* The camera view is always dark, in both themes (a viewfinder), so it has its own two neutrals instead of the theme colours. */
+:root { --cam-bg: #000; --cam-ink: #fff; }

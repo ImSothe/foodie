@@ -52,6 +52,24 @@ Not defended, and worth knowing:
 - **Google sees your data.** It is stored in Google's Firestore (eur3, Europe) under your Google account id. foodie has no server of its own and cannot read it without you being signed in.
 - **Sign-in was verified up to Google's account page, not past it.** Opening the popup and reaching Google's sign-in produced no CSP violation; a complete sign-in, and the sync against the real Firestore, still need to be exercised by a person with a Google account (including the installed iPhone PWA).
 
+## Camera and barcode scanning: what is defended and what is not
+
+| Risk | Defence | Test |
+|---|---|---|
+| A scanned code that opens something | Scanned text is never opened or navigated to: only a bare number or a GS1 Digital Link with a valid check digit becomes a product code, everything else is ignored | `off.test.js`, `scanner.test.js` (links, Wi-Fi codes, bad check digits) |
+| A hostile product record (name with markup, a picture from another host, absurd numbers) | The record is cleaned like any other text and range-checked before it is cached or shown; the picture must be on `images.openfoodfacts.org`; rendering is by text nodes only | `off.test.js`, `off-client.test.js`, `dom.test.js` |
+| A hostile or corrupt product cache in `localStorage` (`fd.products`) | Validated on load like every key, capped at 200 products and 5 MB, never exported or synced | `off-client.test.js` |
+| The camera staying on | Every track is stopped when the view closes, the route changes or the page is hidden (verified in Chromium with a simulated camera) | `scanner.test.js`; browser check |
+| Loading the barcode reader from a CDN | The reader and its WebAssembly are vendored in `app/vendor/lazy/` and served from this origin; the library's default CDN address is overridden | `static.test.js` (vendored files listed by exact path) |
+
+Hosts and permissions added for this, each one pinned with its reason in `tests/static.test.js`:
+
+- `connect-src https://world.openfoodfacts.org`: one GET per new product, asking only for the fields the app uses, with no cookies and no referrer. The barcode that is looked up is sent to Open Food Facts together with your IP address, as with any web request.
+- `img-src https://images.openfoodfacts.org`: the product picture. It is the only external host an `<img src>` may name (`app/ui/dom.js`).
+- `script-src 'wasm-unsafe-eval'`: the barcode reader is ZXing compiled to WebAssembly, and Chromium refuses to instantiate it without this keyword (without it the console reports `script-src | wasm-eval` and the reader never starts). It allows WebAssembly only; `eval()` and string-to-code stay blocked. It is needed only on browsers without a native BarcodeDetector.
+
+Not defended, and worth knowing: Open Food Facts is a crowd-sourced database; values can be wrong or missing, and the app shows what is missing but cannot tell if a stated value is accurate. The camera permission is granted to the whole origin by the browser, so any other app on `imsothe.github.io` shares it.
+
 ## Planned, not built
 
-Rules tests that execute the rules against the Firestore emulator in CI. The planned camera features will add the Open Food Facts host to `connect-src` and the AI endpoint through Firebase AI Logic, each one in the explicit lists of `static.test.js` (it lists the allowed hosts so that adding one is a deliberate change), and the same cleaning of everything that comes back from the server. None of this exists yet.
+Rules tests that execute the rules against the Firestore emulator in CI. The AI analysis of photos will add the AI endpoint through Firebase AI Logic to the explicit lists of `static.test.js` (it lists the allowed hosts so that adding one is a deliberate change), with the same cleaning of everything that comes back from the server. None of this exists yet.

@@ -86,3 +86,50 @@ export function productFromOff(json, code) {
     servingLabel: cleanText(p.serving_size, 40), quantity: cleanText(p.quantity, 40), missing,
   };
 }
+
+// ---------- the local cache of products that were looked up ----------
+
+export const MAX_PRODUCTS = 200;
+const MISSING_KEYS = ['protein_g', 'carbs_g', 'fat_g', 'fiber_g', 'sugars_g', 'sat_fat_g', 'sodium_mg'];
+
+/** The address of a product picture if it belongs to Open Food Facts and is plain, otherwise null. */
+export function cleanImageUrl(v) {
+  return typeof v === 'string' && v.startsWith(IMAGE_PREFIX) && v.length < 300 && !/[\s"'<>\\]/.test(v) ? v : null;
+}
+
+/**
+ * A product as stored in the cache (or read back from it): everything is checked again, as for any data read from storage.
+ * Returns null unless it is a complete, valid product.
+ */
+export function cleanProduct(raw) {
+  try {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw) || raw.ok !== true) return null;
+    const code = typeof raw.code === 'string' && /^\d{8,14}$/.test(raw.code) && hasValidCheckDigit(raw.code) ? raw.code : null;
+    const per100 = cleanPer100(raw.per100);
+    const name = cleanText(raw.name, 120);
+    if (!code || !per100 || !name) return null;
+    const serving = typeof raw.servingG === 'number' && Number.isFinite(raw.servingG) && raw.servingG >= 1 && raw.servingG <= 2000 ? Math.round(raw.servingG * 10) / 10 : null;
+    return {
+      ok: true, code, name, brand: cleanText(raw.brand, 60), imageUrl: cleanImageUrl(raw.imageUrl), per100, estimated: raw.estimated === true,
+      servingG: serving, servingLabel: cleanText(raw.servingLabel, 40), quantity: cleanText(raw.quantity, 40),
+      missing: MISSING_KEYS.filter((k) => !(k in per100)),
+    };
+  } catch (e) { return null; }
+}
+
+/** { [code]: { p: product, at: stamp } }, no prototype, only valid entries, the MAX_PRODUCTS newest. */
+export function cleanProducts(raw) {
+  const out = Object.create(null);
+  try {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+    const entries = [];
+    for (const [code, e] of Object.entries(raw)) {
+      const p = e && typeof e === 'object' ? cleanProduct(e.p) : null;
+      const at = e && typeof e.at === 'number' && Number.isFinite(e.at) && e.at >= 0 && e.at <= 32503680000000 ? Math.floor(e.at) : 0;
+      if (p && p.code === code) entries.push([code, { p, at }]);
+    }
+    entries.sort((a, b) => b[1].at - a[1].at || (a[0] < b[0] ? -1 : 1));
+    for (const [code, e] of entries.slice(0, MAX_PRODUCTS)) out[code] = e;
+  } catch (e) { /* an unreadable cache is an empty cache */ }
+  return out;
+}

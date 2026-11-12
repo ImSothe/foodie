@@ -129,7 +129,7 @@ const jsFiles = listAppFiles().filter((f) => f.endsWith('.js'));
 // Third-party code, vendored by exact path (tools/vendor_*.mjs, see app/vendor/README.txt). It is minified SDK code that legitimately uses
 // postMessage, IndexedDB, web storage, cookies for its own iframe protocol, absolute Google URLs and console warnings, so it is exempt from
 // the guards about those APIs ONLY. The guards against HTML-from-strings and eval (above) still apply to it, and it passes them.
-const VENDORED = new Map([['vendor/firebase.js', 'Firebase web SDK: uses postMessage/IndexedDB/web storage/cookies/console and Google URLs']]);
+const VENDORED = new Map([['vendor/lazy/barcode-detector.js', 'ZXing ponyfill: a console warning and the default jsDelivr URL of its WebAssembly, which app/data/scanner.js overrides with a local file'], ['vendor/firebase.js','Firebase web SDK: uses postMessage/IndexedDB/web storage/cookies/console and Google URLs']]);
 const ownJs = jsFiles.filter((f) => !VENDORED.has(f));
 
 test('srcdoc is only ever named in the deny list of the DOM helper', () => {
@@ -177,17 +177,21 @@ test('connect-src is exactly the allowed list: adding a host must be a deliberat
   // Every host below is needed by Google sign-in or Firestore sync (found by running the sign-in flow and reading the CSP violations):
   //   identitytoolkit.googleapis.com  sign-in requests          securetoken.googleapis.com  refreshing the sign-in token
   //   firestore.googleapis.com        reading and writing the user's own documents
+  //   world.openfoodfacts.org         looking a scanned barcode up in Open Food Facts (one GET, only the fields the app uses)
   // Adding a host must be a deliberate change to this test, with a line saying why.
-  const ALLOWED_CONNECT_SRC = ["'self'", 'https://identitytoolkit.googleapis.com', 'https://securetoken.googleapis.com', 'https://firestore.googleapis.com'];
+  const ALLOWED_CONNECT_SRC = ["'self'", 'https://identitytoolkit.googleapis.com', 'https://securetoken.googleapis.com', 'https://firestore.googleapis.com', 'https://world.openfoodfacts.org'];
   const m = html.match(/http-equiv="Content-Security-Policy" content="([^"]+)"/);
   const csp = Object.fromEntries(m[1].split(';').map((d) => d.trim().split(/\s+/)).map(([name, ...v]) => [name, v]));
   assert.deepEqual(csp['connect-src'], ALLOWED_CONNECT_SRC);
   for (const dir of ['style-src', 'font-src', 'worker-src', 'manifest-src']) assert.deepEqual(csp[dir], ["'self'"], dir);
   // apis.google.com: the helper script that Firebase Auth loads to open the Google sign-in popup. Nothing else may run.
-  assert.deepEqual(csp['script-src'], ["'self'", 'https://apis.google.com']);
+  // 'wasm-unsafe-eval': the barcode reader (ZXing compiled to WebAssembly, vendored in app/vendor/lazy/) cannot be instantiated without it; verified in
+  // Chromium: with it removed the browser reports "script-src | wasm-eval" and the reader never starts. It allows WebAssembly only, not eval().
+  assert.deepEqual(csp['script-src'], ["'self'", "'wasm-unsafe-eval'", 'https://apis.google.com']);
   // The sign-in page of this Firebase project, embedded by the Auth SDK to receive the result of the popup.
   assert.deepEqual(csp['frame-src'], ['https://foodie-6b6da.firebaseapp.com']);
-  assert.deepEqual(csp['img-src'], ["'self'", 'data:', 'blob:']);
+  // images.openfoodfacts.org: the product picture on the scanned-product screen (and the only external host an <img src> may name, see ui/dom.js).
+  assert.deepEqual(csp['img-src'], ["'self'", 'data:', 'blob:', 'https://images.openfoodfacts.org']);
   assert.deepEqual(csp['default-src'], ["'none'"]);
 });
 
@@ -197,10 +201,12 @@ test('app code never contacts another origin: no absolute URLs and no network AP
     // The only absolute URLs in app code: the SVG namespace, and Open Food Facts in off.js (the API host and the host its product images
     // must come from; both are also pinned in the CSP test above). Anything else, anywhere else, fails.
     const withoutAllowed = code.replace(/http:\/\/www\.w3\.org\/2000\/svg/g, '')
-      .replace(f === 'core/off.js' ? /https:\/\/(world|images)\.openfoodfacts\.org/g : /$^/g, '');
+      .replace(['core/off.js', 'ui/dom.js'].includes(f) ? /https:\/\/(world|images)\.openfoodfacts\.org/g : /$^/g, '');
     assert.ok(!/https?:\/\//.test(withoutAllowed), `${f} has an absolute URL`);
     assert.ok(!/\b(XMLHttpRequest|WebSocket|EventSource|sendBeacon|importScripts)\b/.test(code), `${f} uses a network API that is not allowed yet`);
-    for (const m of code.matchAll(/\bfetch\(\s*([^)]*)\)/g)) assert.ok(/^(FOODS_URL|req\b)/.test(m[1].trim()), `${f}: fetch(${m[1]})`);
+    // fetch of own files only (the table of foods, the service worker's own requests); off-client.js forwards `fetchFn(offUrl(code))`, whose origin
+    // is pinned in core/off.js and in the CSP, and its default is the plain global fetch (checked by tests/off-client.test.js).
+    for (const m of code.matchAll(/\bfetch\(\s*([^)]*)\)/g)) assert.ok(/^(FOODS_URL|req\b)/.test(m[1].trim()) || (f === 'data/off-client.js' && m[1].trim() === '...a'), `${f}: fetch(${m[1]})`);
   }
 });
 

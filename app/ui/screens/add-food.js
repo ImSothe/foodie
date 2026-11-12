@@ -57,8 +57,9 @@ function totalsBox(read) {
  * @param {object} o.store
  * @param {string} o.day     ISO day the meal is added to
  * @param {string} o.today
+ * @param {string} [o.notice]  one calm line shown above the search (why the person landed here)
  */
-export function openAddFood({ store, day, today }) {
+export function openAddFood({ store, day, today, notice = '' }) {
   /** @type {{food:object, grams:number}[]} */
   const basket = [];
   let slot = defaultSlot(new Date().getHours());
@@ -101,6 +102,7 @@ export function openAddFood({ store, day, today }) {
     };
     input.addEventListener('input', paint);
     show(
+      notice ? h('p', { class: 'note small' }, notice) : null,
       h('p', { class: 'small muted sheet-lead' }, `Se añadirá al día: ${dayTitle(day, today)}. Los valores son medias de tablas de composición.`),
       input, status, results,
       basket.length ? h('div', { class: 'sheet-actions' },

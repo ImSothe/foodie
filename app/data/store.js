@@ -7,6 +7,7 @@
    Whatever is read back is validated by core/schema.js: stored data is never trusted blindly. A stored value
    larger than MAX_STORED_CHARS is not even parsed. */
 import { isIso } from '../core/dates.js';
+import { cleanProducts, cleanProduct } from '../core/off.js';
 import { cleanProfile, computePlan, toGoals } from '../core/goals.js';
 import {
   cleanMeal, cleanDays, cleanGoalsHistory, cleanSaved, cleanWeights, cleanGoals, goalsFor as goalsInForce, setGoalsEntry,
@@ -15,7 +16,7 @@ import {
 } from '../core/schema.js';
 
 export const STORAGE_KEYS = {
-  profile: 'fd.profile', goals: 'fd.goals', days: 'fd.days', saved: 'fd.saved', weights: 'fd.weights', sync: 'fd.sync',
+  profile: 'fd.profile', goals: 'fd.goals', days: 'fd.days', saved: 'fd.saved', weights: 'fd.weights', sync: 'fd.sync', products: 'fd.products',
 };
 const KEY_NAMES = new Set(Object.values(STORAGE_KEYS));
 
@@ -87,6 +88,7 @@ export function createStore(storage, env = {}) {
       saved: cleanSaved(read(STORAGE_KEYS.saved)),
       weights: cleanWeights(read(STORAGE_KEYS.weights)),
       sync: cleanSyncMeta(read(STORAGE_KEYS.sync)),
+      products: cleanProducts(read(STORAGE_KEYS.products)),
     };
   }
 
@@ -140,6 +142,8 @@ export function createStore(storage, env = {}) {
     getDays: () => state.days,
     loggedDays: () => loggedDaysOf(state.days),
     getSaved: () => state.saved,
+    /** A product looked up before (Open Food Facts), so a repeat scan is instant and works offline. Null if unknown. */
+    getProduct: (code) => (typeof code === 'string' && state.products[code] ? state.products[code].p : null),
     getWeights: () => state.weights,
     /** False once a write to storage has failed: the data is only kept in memory for this session. */
     get persistent() { return persistent; },
@@ -318,11 +322,21 @@ export function createStore(storage, env = {}) {
         profile: state.profile, goals: state.goals, days: state.days, saved: state.saved, weights: state.weights,
       });
     },
+    /** Remembers a looked-up product (the newest 200 are kept). Local only: it is a cache, not your data, so it is never synced or exported. */
+    putProduct(product) {
+      const clean = cleanProduct(product);
+      if (!clean) return null;
+      const next = Object.assign(nullMap(), state.products);
+      next[clean.code] = { p: clean, at: now().getTime() };
+      state.products = cleanProducts(next);
+      write('products');
+      return clean;
+    },
     clearAll() {
       for (const k of KEY_NAMES) {
         try { storage.removeItem(k); } catch (e) { report(problem('write', k, e)); } // still stored: the data may come back on reload
       }
-      state = { profile: null, goals: [], days: nullMap(), saved: [], weights: nullMap(), sync: emptySyncMeta() };
+      state = { profile: null, goals: [], days: nullMap(), saved: [], weights: nullMap(), sync: emptySyncMeta(), products: nullMap() };
       notify();
     },
     // ---- cloud sync (see app/data/cloud.js and app/core/merge.js) ----

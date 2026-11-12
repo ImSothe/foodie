@@ -114,3 +114,16 @@ test('dom: mount replaces the children and keeps text as text', () => {
 test('dom: the only elements created while this file ran are the ones the tests asked for', () => {
   assert.ok(dom.doc.created.every((el) => !['script', 'iframe', 'object', 'embed', 'style', 'link', 'meta', 'base'].includes(String(el.tagName).toLowerCase())));
 });
+
+test('dom: an <img src> may name the Open Food Facts image host and no other (the CSP allows exactly that host)', () => {
+  const ok = 'https://images.openfoodfacts.org/images/products/301/762/042/2003/front_es.4.200.jpg';
+  assert.equal(attrs(h('img', { src: ok })).src, ok);
+  for (const bad of ['https://images.openfoodfacts.org.evil.test/x.jpg', 'https://evil.test/x.jpg', 'http://images.openfoodfacts.org/x.jpg', 'https://images.openfoodfacts.org@evil.test/x.jpg',
+    ok + ' onerror=alert(1)', ok + '"', 'https://world.openfoodfacts.org/x.jpg', 'https://images.openfoodfacts.org']) {
+    assert.equal(attrs(h('img', { src: bad })).src, undefined, bad);
+  }
+  // the exception is for `src` only: a link or a form target to that host is still refused
+  for (const attr of ['href', 'action', 'formaction', 'poster', 'xlink:href']) assert.equal(attrs(h('a', { [attr]: ok }))[attr], undefined, attr);
+  assert.equal(isSafeUrl(ok), false);
+  assert.equal(isSafeUrl(ok, 'src'), true);
+});

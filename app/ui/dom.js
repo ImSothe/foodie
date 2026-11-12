@@ -12,12 +12,18 @@ const DROPPED_ATTRIBUTES = new Set(['srcdoc', 'srcset', 'innerhtml', 'outerhtml'
 const SCHEME = /^[a-zA-Z][a-zA-Z0-9+.-]*:/;
 const SAFE_SCHEME = /^(blob:|data:image\/(png|jpeg|jpg|gif|webp|avif)[;,])/i;  // raster images only: no data:text/html, no SVG documents
 
-/** Relative URLs, "#fragment", blob: and raster data:image/ only. Everything else (javascript:, data:text/html, other hosts) is refused. */
-export function isSafeUrl(value) {
+// Pictures of products come from Open Food Facts: the one external host an image `src` may name (the CSP allows the same host and no other).
+const IMAGE_HOSTS = ['https://images.openfoodfacts.org/'];
+
+/**
+ * Relative URLs, "#fragment", blob: and raster data:image/ only; for `src` also a picture of an allowed host (IMAGE_HOSTS, with the slash,
+ * so "images.openfoodfacts.org.evil.test" does not match). Everything else (javascript:, data:text/html, other hosts) is refused.
+ */
+export function isSafeUrl(value, attr = '') {
   if (typeof value !== 'string') return false;
   if (/[\u0000-\u001F\u007F-\u009F]/.test(value)) return false;   // browsers ignore tabs and newlines inside a scheme: "java\nscript:"
   const url = value.trim();
-  if (SCHEME.test(url)) return SAFE_SCHEME.test(url);
+  if (SCHEME.test(url)) return SAFE_SCHEME.test(url) || (attr.toLowerCase() === 'src' && IMAGE_HOSTS.some((p) => url.startsWith(p)) && !/[\s"'<>\\]/.test(url));
   return !url.startsWith('//') && !url.startsWith('\\');         // "//host" and "\\host" point to another origin
 }
 
@@ -33,7 +39,7 @@ function setProps(el, props) {
     else if (name.startsWith('on') || DROPPED_ATTRIBUTES.has(name)) continue;   // an "onclick" that is not a function would become an inline handler
     else if (AS_PROPERTY.has(k)) el[k] = v;
     else if (!ATTRIBUTE_NAME.test(k)) continue;
-    else if (URL_ATTRIBUTES.has(name) && !isSafeUrl(String(v))) continue;
+    else if (URL_ATTRIBUTES.has(name) && !isSafeUrl(String(v), name)) continue;
     else el.setAttribute(k, v === true ? '' : String(v));
   }
 }
