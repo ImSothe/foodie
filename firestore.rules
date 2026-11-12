@@ -1,0 +1,98 @@
+rules_version = '2';
+
+// foodie · Cloud Firestore security rules.
+// Deny by default. A signed-in user can read and write only what lives under users/{their own uid}.
+// The shapes below mirror app/core/cloudmap.js. Rules cannot loop over map entries, so what is inside a meal
+// (names, items, per-100 g values) is checked by the app's cleaners on every read and write; the rules cap how
+// many entries each map may hold and keep every field to its type and range. A user can only ever damage their own data.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    // true when the field is absent, or present and a number inside [lo, hi]
+    function optNumber(d, field, lo, hi) {
+      return !(field in d) || (d[field] is number && d[field] >= lo && d[field] <= hi);
+    }
+
+    // true when the field is absent, or present and a map with at most `max` entries
+    function optMap(d, field, max) {
+      return !(field in d) || (d[field] is map && d[field].size() <= max);
+    }
+
+    function optList(d, field, max) {
+      return !(field in d) || (d[field] is list && d[field].size() <= max);
+    }
+
+    // a stamp is milliseconds since 1970: 0 .. year 3000
+    function optStamp(d, field) {
+      return optNumber(d, field, 0, 32503680000000);
+    }
+
+    function validUser(d) {
+      return d.keys().hasOnly(['profile', 'profileAt', 'goals', 'goalsAt', 'updatedAt'])
+        && (!('profile' in d) || d.profile is map)
+        && optList(d, 'goals', 1000)
+        && optMap(d, 'goalsAt', 1000)
+        && optStamp(d, 'profileAt')
+        && optStamp(d, 'updatedAt');
+    }
+
+    function validDay(d) {
+      return d.keys().hasOnly(['meals', 'deleted', 'waterMl', 'waterAt', 'steps', 'stepsAt', 'updatedAt'])
+        && optMap(d, 'meals', 100)
+        && optMap(d, 'deleted', 500)
+        && optNumber(d, 'waterMl', 0, 20000)
+        && optNumber(d, 'steps', 0, 200000)
+        && optStamp(d, 'waterAt')
+        && optStamp(d, 'stepsAt')
+        && optStamp(d, 'updatedAt');
+    }
+
+    function validSaved(d) {
+      return d.keys().hasOnly(['items', 'deleted', 'updatedAt'])
+        && optMap(d, 'items', 300)
+        && optMap(d, 'deleted', 500)
+        && optStamp(d, 'updatedAt');
+    }
+
+    function validWeights(d) {
+      return d.keys().hasOnly(['w', 'at', 'updatedAt'])
+        && optMap(d, 'w', 4000)
+        && optMap(d, 'at', 4000)
+        && optStamp(d, 'updatedAt');
+    }
+
+    match /users/{uid} {
+      allow get: if isOwner(uid);
+      allow create, update: if isOwner(uid) && validUser(request.resource.data);
+      allow delete: if isOwner(uid);
+
+      match /days/{iso} {
+        allow get, list: if isOwner(uid);
+        allow create, update: if isOwner(uid)
+          && iso.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          && validDay(request.resource.data);
+        allow delete: if isOwner(uid);
+      }
+
+      match /meta/saved {
+        allow get: if isOwner(uid);
+        allow create, update: if isOwner(uid) && validSaved(request.resource.data);
+        allow delete: if isOwner(uid);
+      }
+
+      match /meta/weights {
+        allow get: if isOwner(uid);
+        allow create, update: if isOwner(uid) && validWeights(request.resource.data);
+        allow delete: if isOwner(uid);
+      }
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
