@@ -17,10 +17,19 @@ Early. The app is being built in steps, and this README only lists what exists.
 |---|---|---|
 | 1 | Architecture and data model | Done |
 | 2 | Repository, PWA shell, design system, GitHub Pages deploy | Done |
-| 3 | Google sign-in, goals (deficit, maintenance, surplus), water target, daily log, history | Next |
+| 3a | Local-first app: profile and goals (deficit, maintenance, surplus), daily log, search of basic foods, favourites, water, steps typed by hand, progress, export | Done |
+| 3b | Google sign-in and cloud sync | Next |
 | 4 | Barcode scanner (Open Food Facts) and photo analysis with AI | Planned |
 
-What you see in the live app today is the interface running on **sample data**: nothing is saved yet and the `+` options are not wired.
+What works today, all on your device (nothing is sent anywhere, there is no account yet):
+
+- **Onboarding:** a few questions (sex, age, height, weight, activity, goal) and an editable daily plan for calories, protein, carbohydrates, fat, water and steps, estimated with the Mifflin-St Jeor formula. These are estimates, not medical advice.
+- **Log a meal by searching** about 100 common foods in Spain (portions, grams slider, several foods per meal), then fix the grams afterwards. Duplicate a meal on another day, save it as a favourite, delete it with undo.
+- **Home:** calories left, macros, water, steps, vitamins and minerals against sex-specific reference values, and a week strip you can move back through.
+- **Progress:** month calendar of the days you met your goal, average calories per week, weight history.
+- **Settings:** edit your profile and goals (past days keep the goals they had), export your data as JSON, delete it from the device.
+
+Not there yet: sign-in and cloud copy, and the other three options of the `+` menu (photo, barcode, nutrition label), which show a notice. Steps are typed by hand for now.
 
 ## The idea
 
@@ -48,8 +57,8 @@ Three ways to log, only one of them uses AI:
 
 ```
 app/
-  core/      nutrition maths and dates (pure, tested)
-  data/      sample data for now; local cache and cloud sync later
+  core/      nutrition, goals, data shapes, search, progress and dates (pure, tested)
+  data/      local store (localStorage, validated on load) and the table of foods
   ui/        DOM helpers, ring, week strip, ingredient editor, screens
   css/       tokens, base, components
   sw.js      service worker        boot.js   theme and anti-clickjacking, before first paint
@@ -73,7 +82,8 @@ The service worker is off on localhost so you always get fresh files; add `?sw=1
 
 - The interaction model (week strip, calories-left ring, macro rings, camera-first logging) follows the pattern popularised by photo calorie trackers such as Cal AI. foodie is an independent project: it shares no code, assets or branding with them.
 - Display typeface: [Bricolage Grotesque](https://github.com/ateliertriay/bricolage), SIL Open Font License 1.1 (`app/fonts/OFL.txt`).
-- Daily reference values for vitamins and minerals: Regulation (EU) No 1169/2011.
+- Daily reference values for vitamins and minerals: Regulation (EU) No 1169/2011, with the EFSA dietary reference values for iron, magnesium, vitamin A and vitamin C by sex.
+- Food composition values (`app/data/foods.es.json`) are rounded, approximate averages in the range of standard composition tables (USDA FoodData Central, BEDCA). They were not copied line by line from those tables, so treat them as estimates; tests only check them for internal consistency.
 - Built with the help of AI coding tools.
 
 ## Licence
