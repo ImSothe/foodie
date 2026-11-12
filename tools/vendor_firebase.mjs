@@ -6,8 +6,9 @@
    Usage:  node tools/vendor_firebase.mjs                       (writes app/vendor/firebase.js and the notice files)
    Needs:  Node 22+, npm and network access.
 
-   What is bundled: app, auth (Google popup, IndexedDB/localStorage persistence) and the LITE build of Firestore
-   (plain REST, no realtime listeners and no offline cache: foodie keeps its own queue). */
+   What is bundled: app, auth (Google popup, IndexedDB/localStorage persistence), the LITE build of Firestore
+   (plain REST, no realtime listeners and no offline cache: foodie keeps its own queue), App Check (reCAPTCHA Enterprise) and
+   Firebase AI Logic (Gemini Developer API) for the photo analysis. */
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdtempSync, writeFileSync, readFileSync, mkdirSync, rmSync } from 'node:fs';
@@ -25,6 +26,8 @@ const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
 const ENTRY = `export { initializeApp } from 'firebase/app';
 export { initializeAuth, indexedDBLocalPersistence, browserLocalPersistence, browserPopupRedirectResolver, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 export { getFirestore, doc, getDoc, setDoc, deleteField, collection, getDocs, query, where, writeBatch } from 'firebase/firestore/lite';
+export { initializeAppCheck, ReCaptchaEnterpriseProvider, getToken as getAppCheckToken } from 'firebase/app-check';
+export { getAI, getGenerativeModel, GoogleAIBackend, Schema, ThinkingLevel } from 'firebase/ai';
 `;
 
 const work = mkdtempSync(join(tmpdir(), 'foodie-vendor-'));
@@ -58,7 +61,8 @@ try {
   const notice = `foodie · vendored Firebase web SDK
 
 File:      firebase.js  (one ES module, minified)
-Contents:  firebase/app, firebase/auth (Google popup) and firebase/firestore/lite, bundled with their dependencies
+Contents:  firebase/app, firebase/auth (Google popup), firebase/firestore/lite, firebase/app-check (reCAPTCHA Enterprise) and firebase/ai
+           (Firebase AI Logic, Gemini Developer API), bundled with their dependencies
 Versions:  firebase ${FIREBASE}, esbuild ${ESBUILD}
 Command:   node tools/vendor_firebase.mjs
            (npm install firebase@${FIREBASE} in a temporary folder, then
