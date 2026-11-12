@@ -10,8 +10,12 @@ import { APP_CHECK_SITE_KEY } from './firebase-config.js';
 import { buildVisionPrompt, parseVision, toSdkSchema, VISION_JSON_SCHEMA } from '../core/vision.js';
 import { compressFile, thumbnailDataUrl } from './image.js';
 
-/** The model to ask. Named in the Firebase AI Logic documentation as a current model that needs no billing plan. */
-export const VISION_MODEL = 'gemini-3.8-flash';
+/**
+ * The model to ask: named in the Firebase AI Logic documentation as a current model that needs no billing plan, and the one that
+ * answered in about a second when tried for real. gemini-3.8-flash (also free) timed out or answered HTTP 500 "high demand" on every
+ * try on the day this was built; changing the constant is all it takes to switch.
+ */
+export const VISION_MODEL = 'gemini-3.5-flash-lite';
 export const TIMEOUT_MS = 45000;
 export const COOLDOWN_MS = 3000;
 export const RETRY_DELAY_MS = 1500;
@@ -86,7 +90,7 @@ export function createVision({
           temperature: 0.2,
           responseMimeType: 'application/json',
           responseSchema: toSdkSchema(VISION_JSON_SCHEMA, sdk.Schema),
-          thinkingConfig: { thinkingLevel: sdk.ThinkingLevel.LOW },       // the lowest level gemini-3.8-flash accepts: faster answers
+          thinkingConfig: { thinkingLevel: sdk.ThinkingLevel.LOW },       // a little reasoning for the weights; MINIMAL is this model's default
         },
         requestOptions: { timeout: timeoutMs },
       });

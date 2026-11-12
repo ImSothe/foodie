@@ -40,7 +40,7 @@ test('toSdkSchema: builds the SDK schema with optional properties taken from `re
   assert.equal(s.properties.scale_ref.kind, 'enum');
   assert.deepEqual(s.properties.scale_ref.enum, SCALE_REFS);
   assert.equal(s.properties.items.kind, 'array');
-  assert.equal(s.properties.items.maxItems, 12);
+  assert.equal('maxItems' in s.properties.items, false, 'the service rejects the schema with maxItems (HTTP 400 seen for real); parseVision enforces the limit');
   const per100 = s.properties.items.items.properties.per100;
   assert.ok(per100.optionalProperties.includes('iron_mg') && !per100.optionalProperties.includes('kcal'));
   assert.throws(() => toSdkSchema({ type: 'weird' }, Schema), /unsupported/);
@@ -52,6 +52,7 @@ test('prompt: the context is cleaned, bounded and marked as true; without it the
   assert.match(plain.system, /hidden = true/);
   assert.match(plain.system, /AVAILABLE carbohydrate/);
   assert.match(plain.system, /needs_context to true/);
+  assert.match(plain.system, /at most 12 items/);
   assert.match(plain.system, /Spanish/);
   assert.doesNotMatch(plain.user, /Contexto aportado/);
   const ctx = buildVisionPrompt({ context: `  burrito de pollo‮ con arroz\u0000 y frijoles ${'x'.repeat(1000)}` });

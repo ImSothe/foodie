@@ -3,7 +3,7 @@
    origins (sign-in, cloud sync, food databases, AI) are never intercepted.
    The block below is written by `npm run stamp`; a test fails if it is out of date. */
 /* stamp:start */
-const VERSION = '08ba984a5720';
+const VERSION = 'e2c1a2b98c91';
 const SHELL = [
   "./",
   "./boot.js",

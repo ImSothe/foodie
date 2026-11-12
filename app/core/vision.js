@@ -65,7 +65,9 @@ export function toSdkSchema(json, Schema) {
       const properties = Object.fromEntries(Object.entries(json.properties).map(([k, v]) => [k, toSdkSchema(v, Schema)]));
       return Schema.object({ properties, optionalProperties: Object.keys(properties).filter((k) => !required.has(k)) });
     }
-    case 'array': return Schema.array({ items: toSdkSchema(json.items, Schema), maxItems: json.maxItems });
+    // maxItems is NOT passed on: with this many nested properties the service rejects the request (HTTP 400, checked against gemini-3.5-flash-lite).
+    // The limit is in the prompt and enforced again by parseVision.
+    case 'array': return Schema.array({ items: toSdkSchema(json.items, Schema) });
     case 'string': return json.enum ? Schema.enumString({ enum: json.enum }) : Schema.string();
     case 'number': return Schema.number();
     case 'boolean': return Schema.boolean();
@@ -84,6 +86,7 @@ Be honest about uncertainty: lower the confidence values when there is no scale 
 If the photo does not show food, set is_food to false and give an empty-looking best guess.
 If you cannot see what is inside (a wrapped burrito, a closed container, a sealed package without a readable label, a drink in an opaque cup), set needs_context to true and still give your best guess.
 If the user supplies context, treat it as true and use it.
+Return at most 12 items: merge small garnishes into one.
 Write dish, name and notes in Spanish; use generic ingredient names ("arroz blanco cocido", "pechuga de pollo a la plancha"). Answer only with JSON in the requested format.`;
 
 const LABEL_PROMPT = `The photo shows the nutrition facts table of a packaged food, not a plate. Read the table instead of estimating: return ONE item, name it after the product if the name is visible, give its values per 100 g exactly as printed (convert per-serving values to per 100 g if that is all the label gives), grams = the serving size in grams if printed, otherwise 100, scale_ref "package", hidden false. If the table is not readable set needs_context to true.`;
