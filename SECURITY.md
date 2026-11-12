@@ -70,6 +70,33 @@ Hosts and permissions added for this, each one pinned with its reason in `tests/
 
 Not defended, and worth knowing: Open Food Facts is a crowd-sourced database; values can be wrong or missing, and the app shows what is missing but cannot tell if a stated value is accurate. The camera permission is granted to the whole origin by the browser, so any other app on `imsothe.github.io` shares it.
 
+## Photo analysis (AI): what is defended and what is not
+
+What leaves the device: one shrunk copy of the photo (at most about 400 KB, inline) and, if you typed one, a line of context, sent to Google (Gemini, through Firebase AI Logic). foodie does not store the photo; only a 160 px JPEG thumbnail (at most 12 KB) is saved with the meal, and only when you add the meal.
+
+| Risk | Defence | Test |
+|---|---|---|
+| Hostile or broken model output (markup in names, absurd grams, wrong types, hostile keys) | Every field is range-checked and cleaned by `core/vision.js`; items without calories are dropped; grams are capped; calories that do not match the macros are flagged; the result is rendered as text | `vision.test.js` (fixtures and 3,000 fuzzed answers) |
+| A photo or an answer stored by accident | The screen only hands a meal (with at most a small thumbnail) to the store; the thumbnail must be a JPEG data URL under 12 KB or it is dropped | `static.test.js`, `vision.test.js` (thumbnails), `image.test.js` |
+| Runaway calls | One analysis at a time, a 3 s cooldown, a 45 s timeout, one retry for a transient failure | `vision-data.test.js` |
+| The App Check debug token reaching production | It is switched on only when the host name is exactly `localhost` or `127.0.0.1`, and the string appears once in the code | `static.test.js`, `vision-data.test.js` |
+
+Who can call the AI, said plainly:
+
+- **The AI endpoint rejects requests that lack a valid App Check token.** This was checked by calling it with only the public web configuration: it answered 401 "Firebase App Check token is invalid". Firestore without sign-in answers 403.
+- **App Check does not require a signed-in user.** "Only signed-in people can analyse photos" is a rule of this app (`data/vision.js` checks `cloud.user` before it touches Firebase), not something Google enforces on our behalf. A script running inside this app's own page could still obtain App Check tokens; reCAPTCHA's scoring limits that, it does not eliminate it.
+- **The free quota is shared by every user of the project.** If it runs out, the photo flow says so ("se agotó el límite gratuito de hoy"). Nothing here claims the quota is protected.
+- **App Check uses reCAPTCHA Enterprise (Fraud Defense).** `APP_CHECK_SITE_KEY` in `app/data/firebase-config.js` is public by design. The key is allowed for `imsothe.github.io` and `localhost` only; any other host (a fork, a preview deployment) gets no App Check token until its own debug token is registered in the Firebase console. If the key were empty the photo flow would show "La IA no está configurada todavía" and send nothing. On localhost the app turns on Firebase's debug token mechanism, and only there.
+- **Google sees the photos you send.** Under Google's terms for the Gemini Developer API, not foodie's. Do not photograph anything you would not send to Google.
+
+The model is `gemini-3.5-flash-lite` (a constant in `app/data/vision.js`): the larger `gemini-3.8-flash` answered HTTP 500 "high demand" or did not answer on the day this was tried, the lite model answered in 1 to 4 seconds. Both need no billing plan.
+
+Hosts added for this, each pinned with its reason in `tests/static.test.js` (found by running the real App Check and AI calls from localhost with the site key and reading the requests and the browser's CSP violations; each reCAPTCHA host was then removed in turn to confirm it is needed):
+
+- `connect-src https://firebasevertexai.googleapis.com`: the Firebase AI Logic endpoint the SDK calls with the photo.
+- `connect-src https://content-firebaseappcheck.googleapis.com`: exchange of the reCAPTCHA result for an App Check token.
+- `script-src https://www.google.com https://www.gstatic.com`, `frame-src https://www.google.com`, `connect-src https://www.google.com`: reCAPTCHA Enterprise (the Fraud Defense provider registered for App Check), which attests that the request comes from this app. The reCAPTCHA scripts run in the page; they are Google's, loaded from Google, and nothing else is allowed.
+
 ## Planned, not built
 
-Rules tests that execute the rules against the Firestore emulator in CI. The AI analysis of photos will add the AI endpoint through Firebase AI Logic to the explicit lists of `static.test.js` (it lists the allowed hosts so that adding one is a deliberate change), with the same cleaning of everything that comes back from the server. None of this exists yet.
+Rules tests that execute the rules against the Firestore emulator in CI. Server-side enforcement of "signed in" for the AI endpoint (it is an app rule today). Registering the App Check site key, and a real run of the photo analysis. None of this exists yet.
