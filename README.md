@@ -2,7 +2,15 @@
 
 A mobile-first PWA to track calories, macros, vitamins and minerals without weighing your food. Log a meal, then fix the portion with a slider: every number is recalculated on the device, instantly.
 
-**Live app:** https://imsothe.github.io/foodie/ (open it on your phone and add it to the home screen)
+**Live app:** https://imsothe.github.io/foodie/ (free, no download: open it on your phone and add it to the home screen)
+
+**Try it in a minute** (no account needed):
+
+1. Open the link on your phone.
+2. Install it: on iPhone, Safari, Share, *Add to Home Screen*. On Android, Chrome, menu, *Install app*.
+3. Answer the few questions, then tap `+` and search a food. Tap a meal to move the sliders and watch the numbers change.
+
+What works today: everything above, plus an optional "Continuar con Google" in Settings to keep a copy in the cloud. What does not exist yet: logging by photo, barcode or label (the `+` options for those show a notice). See [Where it stands](#where-it-stands) for the honest list.
 
 <p>
   <img src="docs/img/home-dark.png" alt="Home in dark mode: calories left, macro rings, water and the week strip" width="250">
