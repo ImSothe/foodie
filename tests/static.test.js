@@ -252,6 +252,11 @@ test('secrets stay local: .secrets/ and key files are git-ignored, and no secret
   // reCAPTCHA keys are 40 characters starting with 6L. The public site key may be shipped one day; the secret key never.
   for (const f of files) {
     if (/\.(png|woff2)$/.test(f) || f === 'tests/static.test.js') continue;
+    if (f === 'app/data/firebase-config.js') continue;       // the only place the PUBLIC site key lives (checked below)
     assert.ok(!/\b6L[0-9A-Za-z_-]{38}\b/.test(readFileSync(join(ROOT, f), 'utf8')), `a reCAPTCHA-style key is in ${f}`);
   }
+  const config = readFileSync(join(ROOT, 'app/data/firebase-config.js'), 'utf8');
+  const keys = config.match(/\b6L[0-9A-Za-z_-]{38}\b/g) || [];
+  assert.ok(keys.length <= 1, 'firebase-config.js should hold at most the one public site key');
+  assert.ok(keys.length === 0 || /APP_CHECK_SITE_KEY\s*=\s*'6L/.test(config), 'the reCAPTCHA key in the config must be the APP_CHECK_SITE_KEY (the public one), nothing else');
 });
