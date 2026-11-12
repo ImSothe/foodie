@@ -74,9 +74,11 @@ export function microCoverage(per100) {
   return MICRO_KEYS.filter((k) => num(per100[k]) !== null).length / MICRO_KEYS.length;
 }
 
-/** Energy implied by the macros (Atwater factors). */
+/** Energy implied by the macros, with the EU label factors: 4 kcal/g protein and carbohydrate, 9 fat, 2 fibre.
+    `carbs_g` is available carbohydrate everywhere in the app: fibre is counted separately, as on EU labels. */
 export const kcalFromMacros = (per100) =>
-  4 * (num(per100 && per100.protein_g) || 0) + 4 * (num(per100 && per100.carbs_g) || 0) + 9 * (num(per100 && per100.fat_g) || 0);
+  4 * (num(per100 && per100.protein_g) || 0) + 4 * (num(per100 && per100.carbs_g) || 0) + 9 * (num(per100 && per100.fat_g) || 0)
+  + 2 * (num(per100 && per100.fiber_g) || 0);
 
 /** True when the stated calories and the macros disagree too much to trust (AI or label mistake). */
 export function macroMismatch(per100) {

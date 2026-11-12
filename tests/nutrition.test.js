@@ -60,6 +60,7 @@ test('macroMismatch: flags calories that the macros cannot explain', () => {
   near(kcalFromMacros(chicken), 31 * 4 + 3.6 * 9);
   assert.equal(macroMismatch(chicken), false);
   assert.equal(macroMismatch(rice), false);
+  near(kcalFromMacros({ protein_g: 9, carbs_g: 12.2, fat_g: 0.4, fiber_g: 7.9 }), 36 + 48.8 + 3.6 + 15.8);   // fibre counts 2 kcal/g
   assert.equal(macroMismatch({ kcal: 400, protein_g: 10, carbs_g: 20, fat_g: 5 }), true);   // macros give 165
   assert.equal(macroMismatch({ kcal: 20, protein_g: 1, carbs_g: 1, fat_g: 0 }), false);     // small absolute gap
   assert.equal(macroMismatch({ protein_g: 10 }), false);                                     // nothing stated

@@ -270,7 +270,10 @@ export const cleanFood = guard((raw) => {
   const label = portion ? cleanText(portion.label, 60) : '';
   if (!isId(raw.id) || !name || !per100 || grams === null || !label) return null;
   const aliases = Array.isArray(raw.aliases) ? raw.aliases.slice(0, 20).map((a) => cleanText(a, 60)).filter(Boolean) : [];
-  return { id: raw.id, name, aliases, portion: { label, grams }, per100 };
+  const food = { id: raw.id, name, aliases, portion: { label, grams }, per100 };
+  // Where the numbers come from: a USDA FoodData Central id, or "estimate" when no public table has the food.
+  if (typeof raw.source === 'string' && /^(USDA SR Legacy \d{1,9}|estimate)$/.test(raw.source)) food.source = raw.source;
+  return food;
 }, () => null);
 
 // ---------- small helpers ----------
