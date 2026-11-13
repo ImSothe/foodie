@@ -410,6 +410,13 @@
 .ing-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .ing-name { font-weight: 600; }
 .ing-grams { flex: none; font-size: 19px; font-weight: 700; }
+.ing-head { align-items: center; }
+.ing-amount { flex: none; display: inline-flex; align-items: center; gap: 6px; }
+.ing-amount .ing-input { flex: none; width: 96px; min-height: 44px; padding: 0 12px; text-align: right; font-size: 19px; font-weight: 700; }
+.ing-amount .field-unit { min-width: 0; }
+.ing-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 2px; }
+.ing-foot .ing-kcal { margin: 0; }
+.ing-foot .ing-remove { flex: none; width: auto; min-height: 36px; flex-direction: row; gap: 6px; padding: 0 12px; }
 .ing-ctrl { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
 .ing-kcal { display: block; margin-top: 2px; text-align: right; }
 .step {
@@ -873,3 +880,9 @@ span.cam-side { background: none; }
 .photo-confidence { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: var(--ink-2); }
 .photo-confidence.is-low { color: var(--warn); }
 .photo-warn { color: var(--warn); font-weight: 600; }
+
+/* one-tap repeats at the top of the search */
+.recents { display: grid; gap: 12px; margin-top: 4px; }
+.recents[hidden] { display: none; }
+.recents .btn { flex-wrap: wrap; gap: 4px 10px; }
+.recents-title { margin: 6px 0 0; }

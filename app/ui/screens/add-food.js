@@ -6,7 +6,8 @@ import { numberField } from '../fields.js';
 import { buildIndex, searchFoods } from '../../core/search.js';
 import { scale, sumItems, fmtNum } from '../../core/nutrition.js';
 import { defaultSlot, SLOTS, cleanFood } from '../../core/schema.js';
-import { dayTitle } from '../../core/dates.js';
+import { dayTitle, addDays } from '../../core/dates.js';
+import { recentMeals, copyOfMeal } from '../../core/recents.js';
 
 const FOODS_URL = 'data/foods.es.json';
 const MAX_GRAMS = 5000;
@@ -75,6 +76,36 @@ export function openAddFood({ store, day, today, notice = '' }) {
     return names.join(', ') + (basket.length > 3 ? ` y ${basket.length - 3} más` : '');
   };
 
+  // ---------- one-tap repeats: what was eaten lately, and the day before ----------
+  /** Adds copies of `meals` to the day and closes the sheet; the toast can undo all of them. */
+  function repeat(meals, text) {
+    const added = [];
+    for (const m of meals) {
+      const copy = store.addMeal(day, copyOfMeal(m, meals.length === 1 ? defaultSlot(new Date().getHours()) : undefined));
+      if (copy) added.push(copy);
+    }
+    sheet.close();
+    if (added.length) toast(text(added.length), { label: 'Deshacer', fn: () => { for (const c of added) store.deleteMeal(day, c.id); } });
+    else toast('No se pudo añadir la comida. Ese día puede tener ya 100 comidas.');
+  }
+
+  function recentsBlock() {
+    const before = addDays(day, -1);
+    const yesterday = store.mealsOf(before).filter((m) => m.items && m.items.length);
+    const recents = recentMeals(store);
+    if (!yesterday.length && !recents.length) return null;
+    const yKcal = fmtNum(yesterday.reduce((sum, m) => sum + sumItems(m.items).totals.kcal, 0));
+    return h('div', { class: 'recents' },
+      yesterday.length ? h('button', { type: 'button', class: 'btn btn-secondary', onClick: () => repeat(yesterday, (n) => `${n} ${n === 1 ? 'comida repetida' : 'comidas repetidas'}`) },
+        icon('copy', 20), day === today ? 'Repetir lo de ayer' : 'Repetir el día anterior', h('span', { class: 'small muted' }, `${yesterday.length} ${yesterday.length === 1 ? 'comida' : 'comidas'}, ${yKcal} kcal`)) : null,
+      recents.length ? h('h3', { class: 'section-title recents-title' }, 'Recientes') : null,
+      recents.length ? h('ul', { class: 'food-list' }, recents.map(({ meal, kcal }) => h('li', null,
+        h('button', { type: 'button', class: 'food-row', 'aria-label': `Añadir ${meal.name} otra vez, ${fmtNum(kcal)} kcal`, onClick: () => repeat([meal], () => 'Comida añadida') },
+          h('span', { class: 'food-name' }, meal.name),
+          h('span', { class: 'small muted' }, `${meal.items.length} ${meal.items.length === 1 ? 'alimento' : 'alimentos'}, ${fmtNum(kcal)} kcal`),
+          icon('plus', 20))))) : null);
+  }
+
   // ---------- step 1: search ----------
   function searchStep(query = '') {
     if (!index) {
@@ -90,7 +121,9 @@ export function openAddFood({ store, day, today, notice = '' }) {
     });
     const results = h('ul', { class: 'food-list' });
     const status = h('p', { class: 'small muted', 'aria-live': 'polite' });
+    const recents = basket.length ? null : recentsBlock();        // not while a meal is being put together: the basket is the task then
     const paint = () => {
+      if (recents) recents.hidden = !!input.value.trim();
       const found = searchFoods(index, input.value, 60);
       mount(results, found.map((food) => h('li', null, h('button', { type: 'button', class: 'food-row', onClick: () => gramsStep(food, null) },
         h('span', { class: 'food-name' }, food.name),
@@ -104,7 +137,7 @@ export function openAddFood({ store, day, today, notice = '' }) {
     show(
       notice ? h('p', { class: 'note small' }, notice) : null,
       h('p', { class: 'small muted sheet-lead' }, `Se añadirá al día: ${dayTitle(day, today)}. Los valores son medias de tablas de composición.`),
-      input, status, results,
+      input, status, recents, results,
       basket.length ? h('div', { class: 'sheet-actions' },
         h('button', { type: 'button', class: 'btn btn-primary', onClick: reviewStep },
           `Terminar la comida (${basket.length} ${basket.length === 1 ? 'alimento' : 'alimentos'}, ${fmtNum(basketTotals().kcal)} kcal)`)) : null);

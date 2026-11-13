@@ -145,7 +145,7 @@ test('scanner: start twice does not double the loop; a result that arrives after
 
 test('detector: the native BarcodeDetector is used when it supports our formats', async () => {
   const made = [];
-  class Native { constructor(o) { made.push(o); } static async getSupportedFormats() { return ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'qr_code', 'code_128']; } async detect() { return []; } }
+  class Native { constructor(o) { made.push(o); } static async getSupportedFormats() { return [...FORMATS, 'maxi_code']; } async detect() { return []; } }
   const r = await createDetector({ win: { BarcodeDetector: Native }, load: async () => assert.fail('the ponyfill must not load') });
   assert.equal(r.kind, 'native');
   assert.deepEqual(made[0].formats, FORMATS);

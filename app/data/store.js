@@ -16,8 +16,11 @@ import {
 } from '../core/schema.js';
 
 export const STORAGE_KEYS = {
-  profile: 'fd.profile', goals: 'fd.goals', days: 'fd.days', saved: 'fd.saved', weights: 'fd.weights', sync: 'fd.sync', products: 'fd.products',
+  profile: 'fd.profile', goals: 'fd.goals', days: 'fd.days', saved: 'fd.saved', weights: 'fd.weights', sync: 'fd.sync', products: 'fd.products', ui: 'fd.ui',
 };
+/** Camera modes the app remembers between visits. */
+export const CAMERA_MODES = ['photo', 'code', 'label'];
+const cleanUi = (raw) => ({ mode: raw && typeof raw === 'object' && CAMERA_MODES.includes(raw.mode) ? raw.mode : 'photo' });
 const KEY_NAMES = new Set(Object.values(STORAGE_KEYS));
 
 /** Longest stored value (in characters) that is parsed at all. Real data stays far below it. */
@@ -89,6 +92,7 @@ export function createStore(storage, env = {}) {
       weights: cleanWeights(read(STORAGE_KEYS.weights)),
       sync: cleanSyncMeta(read(STORAGE_KEYS.sync)),
       products: cleanProducts(read(STORAGE_KEYS.products)),
+      ui: cleanUi(read(STORAGE_KEYS.ui)),
     };
   }
 
@@ -143,6 +147,13 @@ export function createStore(storage, env = {}) {
     loggedDays: () => loggedDaysOf(state.days),
     getSaved: () => state.saved,
     /** A product looked up before (Open Food Facts), so a repeat scan is instant and works offline. Null if unknown. */
+    /** The camera mode used last (Foto, Código or Etiqueta), so "+" opens where the person left it. */
+    getCameraMode: () => state.ui.mode,
+    setCameraMode(mode) {
+      if (!CAMERA_MODES.includes(mode) || state.ui.mode === mode) return;
+      state.ui = { mode };
+      write('ui');                                 // quietly: nothing on screen depends on it
+    },
     getProduct: (code) => (typeof code === 'string' && state.products[code] ? state.products[code].p : null),
     getWeights: () => state.weights,
     /** False once a write to storage has failed: the data is only kept in memory for this session. */
@@ -336,7 +347,7 @@ export function createStore(storage, env = {}) {
       for (const k of KEY_NAMES) {
         try { storage.removeItem(k); } catch (e) { report(problem('write', k, e)); } // still stored: the data may come back on reload
       }
-      state = { profile: null, goals: [], days: nullMap(), saved: [], weights: nullMap(), sync: emptySyncMeta(), products: nullMap() };
+      state = { profile: null, goals: [], days: nullMap(), saved: [], weights: nullMap(), sync: emptySyncMeta(), products: nullMap(), ui: cleanUi(null) };
       notify();
     },
     // ---- cloud sync (see app/data/cloud.js and app/core/merge.js) ----
