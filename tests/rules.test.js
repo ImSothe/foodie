@@ -85,3 +85,17 @@ test('the emulator tooling stays in tests/rules/: pinned exactly, locked, and ab
   for (const [name, version] of Object.entries(pkg.devDependencies)) assert.equal(lock.packages[`node_modules/${name}`].version, version, `lockfile has ${name}@${version}`);
   assert.ok(existsSync(new URL('rules.spec.mjs', dir)) && existsSync(new URL('replay.spec.mjs', dir)));
 });
+
+test('rules: the encryption rollout is explicit: one literal switch, phase 1 until every phone has the encrypting app', () => {
+  const flags = [...rules.matchAll(/function plaintextAllowed\(\)\s*\{\s*return\s+(true|false);\s*\}/g)];
+  assert.equal(flags.length, 1, 'exactly one plaintextAllowed() with a literal answer');
+  assert.equal(flags[0][1], 'true', 'PHASE 1 (plaintext and encrypted documents accepted). Phase 2 is the commit that flips this to false, published only after the friends updated.');
+  assert.equal([...rules.matchAll(/plaintextAllowed\(\)/g)].length, 5, 'declared once and used by the four document validators');
+});
+
+test('rules: encrypted shapes are validated (sealed blobs, the verifier, caps), and the verifier cannot ask for fewer than 600,000 iterations', () => {
+  assert.match(rules, /function isSealed\(b, maxCt\)/);
+  assert.match(rules, /b\.iv\.size\(\)\s*==\s*16/);
+  assert.match(rules, /c\.iter is int && c\.iter >= 600000/);
+  for (const cap of ["optMap(d, 'mealsE', 100)", "optMap(d, 'itemsE', 300)", "optMap(d, 'wE', 4000)", "optMap(d, 'goalsE', 1000)", "optSealed(d, 'waterE', 1024)", "optSealed(d, 'profileE', 4096)"]) assert.ok(rules.includes(cap), cap);
+});

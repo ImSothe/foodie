@@ -3,7 +3,7 @@
    The Firebase calls are the real `firebase/firestore` functions; only sign-in is faked (tests/helpers/fake-firebase.js), because the
    emulator context already is "signed in as alice". If a rule refuses what the app writes, the sync ends in status 'error' with
    code 'permission-denied' and these tests fail. */
-import { describe, it, before, after, beforeEach } from 'node:test';
+import { describe, it, before, after, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import * as fs from 'firebase/firestore';
 import { createStore } from '../../app/data/store.js';
@@ -16,7 +16,10 @@ import { createEnv, ALICE, BOB, DAY, profile } from './helpers.mjs';
 let env;
 before(async () => { env = await createEnv(); });
 after(async () => { await env.cleanup(); });
+const live = [];                                   // every phone of the running test
 beforeEach(async () => { await env.clearFirestore(); });
+// A phone's store schedules a sync a few seconds after an edit. Signing out cancels it, so a phone of one test can never write into the next test's data.
+afterEach(async () => { for (const p of live.splice(0)) await p.cloud.signOut().catch(() => {}); });
 
 const per100 = { kcal: 165, protein_g: 31, carbs_g: 0, fat_g: 3.6 };
 const food = (name, extra = {}) => ({ name, slot: 'Almuerzo', source: 'db', items: [{ name, grams: 150, per100 }], ...extra });
@@ -31,6 +34,7 @@ function phone(clock, name, { as = ALICE, initial = {} } = {}) {
   const sdk = { ...fake, ...fs, getFirestore: () => db };
   const store = createStore(memoryStorage(initial), { uuid: () => `${name}-${++n}`, now: () => new Date(clock.t) });
   const cloud = createCloud({ store, loadSdk: async () => sdk, now: () => clock.t, win: null, doc: null });
+  live.push({ cloud });
   return {
     store, cloud,
     async signIn() { const r = await cloud.signIn(); await tick(); return r; },

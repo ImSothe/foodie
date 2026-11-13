@@ -9,8 +9,15 @@ export const ALICE = 'alice-uid';
 export const BOB = 'bob-uid';
 export const DAY = '2026-11-12';
 
-export async function createEnv() {
-  return initializeTestEnvironment({ projectId: PROJECT, firestore: { rules: RULES, host: '127.0.0.1', port: 8080 } });
+/** The rules of the repository with the encryption rollout set to a phase: 1 accepts plaintext and encrypted documents, 2 only encrypted ones.
+    The two differ by one line (plaintextAllowed), so whichever phase the file is in, the other can be tested. */
+const FLAG = /(function plaintextAllowed\(\) \{\s*return )(true|false)(;\s*\})/;
+if (!FLAG.test(RULES)) throw new Error('plaintextAllowed() not found in firestore.rules');
+export const rulesFor = (phase) => RULES.replace(FLAG, (m, a, b, c) => a + (phase === 1 ? 'true' : 'false') + c);
+export const FILE_PHASE = RULES.match(FLAG)[2] === 'true' ? 1 : 2;
+
+export async function createEnv(rules = RULES, projectId = PROJECT) {
+  return initializeTestEnvironment({ projectId, firestore: { rules, host: '127.0.0.1', port: 8080 } });
 }
 
 /** Fill a document with the rules switched off (a fixture, not a test of the rules). */

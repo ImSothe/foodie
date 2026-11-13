@@ -31,36 +31,83 @@ service cloud.firestore {
       return optNumber(d, field, 0, 32503680000000);
     }
 
+    // ---- end-to-end encryption of the cloud copy (core/crypto.js, core/cloudseal.js) -------------------------------------------------
+    // PHASE 1 (now): plaintext documents (written by app versions from before encryption) and encrypted ones are both accepted, so a phone that
+    // still runs an old copy of the app keeps working while everybody updates. PHASE 2: change plaintextAllowed() to return false and publish;
+    // from then on only the encrypted fields are accepted. That is the ONLY line that differs between the two phases.
+    function plaintextAllowed() {
+      return true;
+    }
+
+    // a sealed record: { v: 1, iv: 12 random bytes as 16 base64 characters, ct: ciphertext with its 16-byte tag as base64 }
+    function isSealed(b, maxCt) {
+      return b is map
+        && b.keys().hasOnly(['v', 'iv', 'ct'])
+        && b.keys().hasAll(['v', 'iv', 'ct'])
+        && b.v == 1
+        && b.iv is string && b.iv.size() == 16
+        && b.ct is string && b.ct.size() >= 24 && b.ct.size() <= maxCt;
+    }
+
+    function optSealed(d, field, maxCt) {
+      return !(field in d) || isSealed(d[field], maxCt);
+    }
+
+    // users/{uid}.crypto: the passphrase verifier (salt, PBKDF2 iterations, a sealed check string). 600,000 iterations is the floor.
+    function validCrypto(c) {
+      return c is map
+        && c.keys().hasOnly(['v', 'salt', 'iter', 'check'])
+        && c.keys().hasAll(['v', 'salt', 'iter', 'check'])
+        && c.v == 1
+        && c.salt is string && c.salt.size() == 24
+        && c.iter is int && c.iter >= 600000 && c.iter <= 10000000
+        && isSealed(c.check, 256);
+    }
+
+    // Rules cannot loop over a map, so the entries of mealsE / itemsE / goalsE / wE are not checked one by one: the rules cap how many there are
+    // (and Firestore caps the document at 1 MiB); the app's cleaners and the encryption itself decide what an entry is worth when it is read.
     function validUser(d) {
-      return d.keys().hasOnly(['profile', 'profileAt', 'goals', 'goalsAt', 'updatedAt'])
+      return d.keys().hasOnly(plaintextAllowed()
+          ? ['profile', 'profileE', 'goals', 'goalsE', 'profileAt', 'goalsAt', 'crypto', 'updatedAt']
+          : ['profileE', 'goalsE', 'profileAt', 'goalsAt', 'crypto', 'updatedAt'])
         && (!('profile' in d) || d.profile is map)
         && optList(d, 'goals', 1000)
         && optMap(d, 'goalsAt', 1000)
+        && optSealed(d, 'profileE', 4096)
+        && optMap(d, 'goalsE', 1000)
+        && (!('crypto' in d) || validCrypto(d.crypto))
         && optStamp(d, 'profileAt')
         && optStamp(d, 'updatedAt');
     }
 
     function validDay(d) {
-      return d.keys().hasOnly(['meals', 'deleted', 'waterMl', 'waterAt', 'steps', 'stepsAt', 'updatedAt'])
+      return d.keys().hasOnly(plaintextAllowed()
+          ? ['meals', 'mealsE', 'deleted', 'waterMl', 'waterE', 'waterAt', 'steps', 'stepsE', 'stepsAt', 'updatedAt']
+          : ['mealsE', 'deleted', 'waterE', 'waterAt', 'stepsE', 'stepsAt', 'updatedAt'])
         && optMap(d, 'meals', 100)
+        && optMap(d, 'mealsE', 100)
         && optMap(d, 'deleted', 500)
         && optNumber(d, 'waterMl', 0, 20000)
         && optNumber(d, 'steps', 0, 200000)
+        && optSealed(d, 'waterE', 1024)
+        && optSealed(d, 'stepsE', 1024)
         && optStamp(d, 'waterAt')
         && optStamp(d, 'stepsAt')
         && optStamp(d, 'updatedAt');
     }
 
     function validSaved(d) {
-      return d.keys().hasOnly(['items', 'deleted', 'updatedAt'])
+      return d.keys().hasOnly(plaintextAllowed() ? ['items', 'itemsE', 'deleted', 'updatedAt'] : ['itemsE', 'deleted', 'updatedAt'])
         && optMap(d, 'items', 300)
+        && optMap(d, 'itemsE', 300)
         && optMap(d, 'deleted', 500)
         && optStamp(d, 'updatedAt');
     }
 
     function validWeights(d) {
-      return d.keys().hasOnly(['w', 'at', 'updatedAt'])
+      return d.keys().hasOnly(plaintextAllowed() ? ['w', 'wE', 'at', 'updatedAt'] : ['wE', 'at', 'updatedAt'])
         && optMap(d, 'w', 4000)
+        && optMap(d, 'wE', 4000)
         && optMap(d, 'at', 4000)
         && optStamp(d, 'updatedAt');
     }
