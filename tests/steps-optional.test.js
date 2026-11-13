@@ -9,6 +9,7 @@ import { createStore } from '../app/data/store.js';
 import { createCloud } from '../app/data/cloud.js';
 import { createBackend } from './helpers/fake-firebase.js';
 import { memoryStorage } from './helpers/memory-storage.js';
+import { enter, FAST_CRYPTO } from './helpers/cloud-device.js';
 
 const read = (rel) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8');
 const profile = { sex: 'female', birthYear: 1996, heightCm: 165, weightKg: 60, activity: 'light', goal: 'lose', pace: 0.2 };
@@ -80,8 +81,8 @@ test('cloud: turning steps on at one phone reaches the other, and old documents 
   const phone = (name) => {
     let n = 0; const uid = { current: null, next: 'alice' };
     const store = createStore(memoryStorage(), { uuid: () => `${name}-${++n}`, now: () => new Date(clock.t) });
-    const cloud = createCloud({ store, loadSdk: async () => backend.sdk(uid), now: () => clock.t, win: null, doc: null });
-    return { store, async signIn() { await cloud.signIn(); await tick(); }, async sync() { clock.t += 1000; await cloud.syncNow(); while (cloud.status === 'syncing') await tick(5); } };
+    const cloud = createCloud({ store, loadSdk: async () => backend.sdk(uid), now: () => clock.t, win: null, doc: null, ...FAST_CRYPTO });
+    return { store, async signIn() { await cloud.signIn(); await tick(); await enter(cloud); }, async sync() { clock.t += 1000; await cloud.syncNow(); while (cloud.status === 'syncing') await tick(5); } };
   };
   const a = phone('a'); const b = phone('b');
   await a.signIn(); await b.signIn();
@@ -91,8 +92,9 @@ test('cloud: turning steps on at one phone reaches the other, and old documents 
   a.store.setTrackSteps(true);
   await a.sync(); await b.sync();
   assert.equal(b.store.stepsTracked(), true);
-  assert.equal(backend.docs.get('users/alice').profile.trackSteps, true);
-  backend.docs.set('users/alice', { profile, profileAt: clock.t + 5000, goals: [], goalsAt: {}, updatedAt: clock.t });
+  assert.equal('profile' in backend.docs.get('users/alice'), false, 'the profile is sealed in the cloud');
+  // an older copy of the app writes a plaintext profile without the field, later than ours: it wins like any newer edit
+  backend.docs.set('users/alice', { ...backend.docs.get('users/alice'), profile, profileAt: clock.t + 5000 });
   await b.sync();
   assert.equal('trackSteps' in b.store.getProfile(), false);
 });

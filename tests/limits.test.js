@@ -16,6 +16,7 @@ import { createCloud } from '../app/data/cloud.js';
 import { createBackend } from './helpers/fake-firebase.js';
 import { memoryStorage } from './helpers/memory-storage.js';
 import { memoryUsage } from './helpers/usage.js';
+import { enter, FAST_CRYPTO } from './helpers/cloud-device.js';
 import { makeRng, FUZZ_SEED } from './helpers/prng.js';
 import { anyValue } from './helpers/hostile.js';
 
@@ -241,10 +242,10 @@ function device(backend, clock, name) {
   let n = 0;
   const uid = { current: null, next: 'alice' };
   const store = createStore(memoryStorage(), { uuid: () => `${name}-${++n}`, now: () => new Date(clock.t) });
-  const cloud = createCloud({ store, loadSdk: async () => backend.sdk(uid), now: () => clock.t, win: null, doc: null });
+  const cloud = createCloud({ store, loadSdk: async () => backend.sdk(uid), now: () => clock.t, win: null, doc: null, ...FAST_CRYPTO });
   return {
     store, cloud,
-    async signIn() { await cloud.signIn(); await tick(); },
+    async signIn() { await cloud.signIn(); await tick(); await enter(cloud); },
     async sync() { clock.t += 1000; await cloud.syncNow(); while (cloud.status === 'syncing') await tick(5); },
   };
 }

@@ -11,15 +11,12 @@ import { createCloud } from '../../app/data/cloud.js';
 import { createBackend } from '../helpers/fake-firebase.js';
 import { memoryStorage } from '../helpers/memory-storage.js';
 import { buildYear } from '../helpers/year-data.js';
-import { createEnv, ALICE, BOB, DAY, profile } from './helpers.mjs';
+import { stateFromCloud, dayPatchDiff, userPatch, savedPatchDiff, weightsPatchDiff } from '../../app/core/cloudmap.js';
+import { enter } from '../helpers/cloud-device.js';
+import { createEnv, rulesFor, seed, ALICE, BOB, DAY, profile } from './helpers.mjs';
 
 let env;
-before(async () => { env = await createEnv(); });
-after(async () => { await env.cleanup(); });
 const live = [];                                   // every phone of the running test
-beforeEach(async () => { await env.clearFirestore(); });
-// A phone's store schedules a sync a few seconds after an edit. Signing out cancels it, so a phone of one test can never write into the next test's data.
-afterEach(async () => { for (const p of live.splice(0)) await p.cloud.signOut().catch(() => {}); });
 
 const per100 = { kcal: 165, protein_g: 31, carbs_g: 0, fat_g: 3.6 };
 const food = (name, extra = {}) => ({ name, slot: 'Almuerzo', source: 'db', items: [{ name, grams: 150, per100 }], ...extra });
@@ -37,7 +34,7 @@ function phone(clock, name, { as = ALICE, initial = {} } = {}) {
   live.push({ cloud });
   return {
     store, cloud,
-    async signIn() { const r = await cloud.signIn(); await tick(); return r; },
+    async signIn({ passphrase = true } = {}) { const r = await cloud.signIn(); await tick(); while (cloud.status === 'syncing') await tick(5); if (passphrase) await enter(cloud); return r; },
     async sync() { clock.t += 1000; await cloud.syncNow(); while (cloud.status === 'syncing') await tick(5); assert.notEqual(cloud.status, 'error', `sync failed: ${cloud.error}`); },
   };
 }
@@ -54,7 +51,63 @@ const readAll = async () => {
   return out;
 };
 
-describe('the app against the rules', () => {
+/* The encrypted sync runs against BOTH phases of the rules (see firestore.rules): phase 2 must accept everything the app writes once an account is migrated. */
+for (const phase of [1, 2]) describe(`the app against the rules, phase ${phase}`, () => {
+  before(async () => { env = await createEnv(rulesFor(phase), `demo-foodie-replay${phase}`); });
+  after(async () => { await env.cleanup(); });
+  beforeEach(async () => { await env.clearFirestore(); });
+  // A phone's store schedules a sync a few seconds after an edit. Signing out cancels it, so a phone of one test can never write into the next test's data.
+  afterEach(async () => { for (const p of live.splice(0)) await p.cloud.signOut().catch(() => {}); });
+
+  it('the stored documents are encrypted: no meal name, no thumbnail, no profile number', async () => {
+    const clock = { t: 1_800_000_000_000 };
+    const a = phone(clock, 'a');
+    await a.signIn();
+    a.store.saveProfile({ ...profile, trackSteps: true });
+    a.store.addMeal(DAY, food('Pollo secreto con arroz', { thumb: `data:image/jpeg;base64,${'QUJD'.repeat(100)}` }));
+    a.store.logWeight(DAY, 81.3); a.store.setSteps(DAY, 6420);
+    await a.sync();
+    const text = JSON.stringify(await readAll());
+    for (const secret of ['Pollo secreto', 'data:image', 'heightCm', 'per100', '6420', '81.3']) assert.ok(!text.includes(secret), secret);
+    assert.ok(text.includes('"crypto"') && text.includes('mealsE'));
+  });
+
+  if (phase === 1) {
+    it('migration under phase 1: plaintext written by an older app is sealed, verified and removed through the real rules', async () => {
+      const clock = { t: 1_800_000_000_000 };
+      const old = createStore(memoryStorage(), { uuid: (() => { let n = 0; return () => `old-${++n}`; })(), now: () => new Date(clock.t) });
+      old.saveProfile(profile); old.addMeal(DAY, food('Pollo secreto con arroz')); old.setSteps(DAY, 6420); old.logWeight(DAY, 81.3); old.saveMeal(food('Favorita secreta'));
+      const state = old.getSyncState(); const empty = stateFromCloud({}); const at = clock.t - 5000;
+      const plain = (v) => JSON.parse(JSON.stringify(v));
+      await seed(env, `users/${ALICE}`, plain(userPatch(state, at)));
+      await seed(env, `users/${ALICE}/days/${DAY}`, plain(dayPatchDiff(undefined, state.days[DAY], at)));
+      await seed(env, `users/${ALICE}/meta/saved`, plain(savedPatchDiff(empty, state, at)));
+      await seed(env, `users/${ALICE}/meta/weights`, plain(weightsPatchDiff(empty, state, at)));
+      const a = phone(clock, 'a');
+      await a.signIn({ passphrase: false });
+      assert.equal(a.cloud.status, 'setup');
+      assert.deepEqual(await a.cloud.setupPassphrase('una frase larga para el emulador'), { ok: true, synced: true });
+      assert.deepEqual(a.cloud.migration, { pending: 0 });
+      const docs = await readAll();
+      const text = JSON.stringify(docs);
+      for (const secret of ['Pollo secreto', 'Favorita secreta', 'heightCm', 'per100', '6420']) assert.ok(!text.includes(secret), secret);
+      for (const d of Object.values(docs)) for (const f of ['profile', 'goals', 'meals', 'waterMl', 'steps', 'items', 'w']) assert.equal(f in d, false, f);
+      assert.deepEqual(names(a), ['Pollo secreto con arroz']);
+    });
+  } else {
+    it('phase 2 cannot migrate plaintext in place: the old data stays readable by the owner, and the error says why (so publish phase 2 only when everybody has migrated)', async () => {
+      const clock = { t: 1_800_000_000_000 };
+      await seed(env, `users/${ALICE}/days/${DAY}`, { meals: { x: { id: 'x', name: 'Pollo', slot: 'Cena', source: 'db', items: [{ name: 'Pollo', grams: 100, per100: { kcal: 100, protein_g: 1, carbs_g: 1, fat_g: 1 } }], updatedAt: 5 } }, updatedAt: 5 });
+      const a = phone(clock, 'a');
+      await a.signIn({ passphrase: false });
+      assert.equal(a.cloud.status, 'setup');
+      const r = await a.cloud.setupPassphrase('una frase larga para el emulador');
+      assert.equal(a.cloud.status, 'error');
+      assert.equal(a.cloud.error, 'permission-denied');
+      assert.equal(r.ok === true && r.synced === false, true);
+    });
+  }
+
   it('two devices edit every kind of data, delete, and converge; no write is refused', async () => {
     const clock = { t: 1_800_000_000_000 };
     const a = phone(clock, 'a'); const b = phone(clock, 'b');
@@ -124,7 +177,7 @@ describe('the app against the rules', () => {
     assert.equal(a.store.mealsOf(DAY).length, 100);
     await a.sync();
     const day = (await readAll())[`users/${ALICE}/days/${DAY}`];
-    assert.equal(Object.keys(day.meals).length, 100);
+    assert.equal(Object.keys(day.mealsE).length, 100);
   });
 
   it('negative control: the same sync pointed at someone else\'s data ends in permission-denied', async () => {

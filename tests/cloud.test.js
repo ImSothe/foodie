@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createStore } from '../app/data/store.js';
 import { createCloud } from '../app/data/cloud.js';
 import { createBackend } from './helpers/fake-firebase.js';
+import { enter, FAST_CRYPTO } from './helpers/cloud-device.js';
 
 const DAY = '2026-11-12';
 const per100 = { kcal: 165, protein_g: 31, carbs_g: 0, fat_g: 3.6 };
@@ -18,10 +19,10 @@ function device(backend, clock, name) {
   let n = 0;
   const uid = { current: null, next: 'alice' };
   const store = createStore(memory(), { uuid: () => `${name}-${++n}`, now: () => new Date(clock.t) });
-  const cloud = createCloud({ store, loadSdk: async () => backend.sdk(uid), now: () => clock.t, win: null, doc: null });
+  const cloud = createCloud({ store, loadSdk: async () => backend.sdk(uid), now: () => clock.t, win: null, doc: null, ...FAST_CRYPTO });
   return {
     store, cloud, uid,
-    async signIn(as = 'alice') { uid.next = as; const r = await cloud.signIn(); await tick(); return r; },
+    async signIn(as = 'alice') { uid.next = as; const r = await cloud.signIn(); await tick(); await enter(cloud); return r; },
     async sync() { clock.t += 1000; await cloud.syncNow(); while (cloud.status === 'syncing') await tick(5); },
   };
 }
@@ -109,7 +110,8 @@ test('offline: nothing is lost, the state says so, and the next sync sends every
   assert.equal(a.cloud.status, 'synced');
   assert.deepEqual(a.store.dirtyDays(), {});
   const stored = [...backend.docs.entries()].find(([p]) => p.endsWith(`/days/${DAY}`));
-  assert.ok(stored && Object.keys(stored[1].meals).length === 1);
+  assert.ok(stored && Object.keys(stored[1].mealsE).length === 1, 'one sealed meal');
+  assert.equal('meals' in stored[1], false, 'and no plaintext one');
 });
 
 test('a sync with nothing new reads a little and writes nothing', async () => {

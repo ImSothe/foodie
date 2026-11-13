@@ -106,7 +106,7 @@ async function openCloudUnsafe(raw, ctx) {
     for (const [from, g] of Object.entries(goals.values)) { eu.goals.push(g.value); eu.goalsAt[from] = g.at; }
     enc.user = eu;
     legacy.user = { profile: u.profile, profileAt: u.profileAt, goals: u.goals, goalsAt: u.goalsAt, updatedAt: u.updatedAt };
-    legacyIds.user = { profile: u.profile !== undefined, goals: Array.isArray(u.goals) && u.goals.length > 0 };
+    legacyIds.user = { profile: u.profile !== undefined, goals: u.goals !== undefined };            // even an empty list: any plaintext key left behind would break the strict rules
   });
 
   // --- users/{uid}/days/{iso}
@@ -244,7 +244,8 @@ export function legacyCleanup(legacyIds, enc, merged, uid, now) {
     const want = merged.days[iso];
     const patch = { updatedAt: now };
     if (ids.field) {
-      sweep(patch, 'meals', ids.meals, (id) => (have && want && same(have.meals[id], want.meals[id])) || (want && want.deleted && id in want.deleted));
+      // removable: its sealed copy was read back and equals the merge, or it was deleted since, or it was never valid (the cleaners dropped it: nothing to keep)
+      sweep(patch, 'meals', ids.meals, (id) => (have && want && same(have.meals[id], want.meals[id])) || (want && want.deleted && id in want.deleted) || !(want && id in want.meals));
     }
     if (ids.water) { if (have && want && have.waterMl === want.waterMl && (have.waterAt || 0) === (want.waterAt || 0)) patch.waterMl = DELETE; else unverified += 1; }
     if (ids.steps) { if (have && want && have.steps === want.steps && (have.stepsAt || 0) === (want.stepsAt || 0)) patch.steps = DELETE; else unverified += 1; }
@@ -254,12 +255,12 @@ export function legacyCleanup(legacyIds, enc, merged, uid, now) {
     const patch = { updatedAt: now };
     const have = Object.fromEntries(enc.saved.map((m) => [m.id, m]));
     const want = Object.fromEntries(merged.saved.map((m) => [m.id, m]));
-    sweep(patch, 'items', legacyIds.saved.ids, (id) => same(have[id], want[id]) || (merged.savedDeleted && id in merged.savedDeleted));
+    sweep(patch, 'items', legacyIds.saved.ids, (id) => same(have[id], want[id]) || (merged.savedDeleted && id in merged.savedDeleted) || !(id in want));
     if (Object.keys(patch).length > 1) writes.push({ path: ['users', uid, 'meta', 'saved'], patch });
   }
   if (legacyIds.weights.field) {
     const patch = { updatedAt: now };
-    sweep(patch, 'w', legacyIds.weights.ids, (iso) => enc.weights[iso] !== undefined && enc.weights[iso] === merged.weights[iso]);
+    sweep(patch, 'w', legacyIds.weights.ids, (iso) => (enc.weights[iso] !== undefined && enc.weights[iso] === merged.weights[iso]) || merged.weights[iso] === undefined);
     if (Object.keys(patch).length > 1) writes.push({ path: ['users', uid, 'meta', 'weights'], patch });
   }
   const userPatch = { updatedAt: now };

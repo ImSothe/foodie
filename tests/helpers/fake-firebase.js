@@ -15,8 +15,11 @@ function merge(target, patch) {
 
 export function createBackend() {
   const docs = new Map();                 // path -> data
-  const stats = { reads: 0, writes: 0, failNext: null, offline: false };
+  // failIn: let this many Firestore calls succeed, then fail the next one with 'unavailable' (a connection that drops half-way through a sync)
+  const stats = { reads: 0, writes: 0, failNext: null, failIn: null, offline: false, calls: 0 };
   const check = () => {
+    stats.calls += 1;
+    if (stats.failIn !== null) { if (stats.failIn === 0) { stats.failIn = null; throw Object.assign(new Error('unavailable'), { code: 'unavailable' }); } stats.failIn -= 1; }
     if (stats.offline) throw Object.assign(new Error('offline'), { code: 'unavailable' });
     if (stats.failNext) { const code = stats.failNext; stats.failNext = null; throw Object.assign(new Error(code), { code }); }
   };
@@ -53,11 +56,13 @@ export function createBackend() {
       writeBatch: () => {
         const ops = [];
         return {
+          delete(ref) { ops.push([ref.path, null, { remove: true }]); },
           set(ref, data, opts) { ops.push([ref.path, data, opts]); },
           async commit() {
             check();
             for (const [path, data, opts] of ops) {
               stats.writes += 1;
+              if (opts && opts.remove) { docs.delete(path); continue; }
               docs.set(path, opts && opts.merge ? merge(docs.get(path) || {}, data) : clone(data));
             }
           },
