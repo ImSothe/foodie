@@ -77,6 +77,7 @@ Built in steps. This list only contains what exists.
 What works today, all on your device:
 
 - **Onboarding:** sex, age, height, weight, activity and goal (lose, maintain, gain) give an editable daily plan: calories, protein, carbohydrate, fat, water and steps.
+- **Repeat, don't retype:** the search opens with "Repetir lo de ayer" and your recent meals, one tap each, and `+` opens in the camera mode you used last.
 - **Log a meal by search** from about 100 common foods, with typical portions and a grams slider, several foods per meal. Fix the grams later, duplicate the meal on another day, save it as a favourite, delete with undo.
 - **Home:** calories left, macros, water, steps, and vitamins and minerals against reference values for your sex. A week strip you can move back through.
 - **Progress:** a month calendar of the days you met your goal, average calories per week, weight history.
@@ -84,7 +85,7 @@ What works today, all on your device:
 
 - **Cloud copy (optional):** one button in Settings, "Continuar con Google". Meals, water, steps, favourites, weights, goals and profile sync between devices; the newest edit wins and a deletion on one phone reaches the others. The app works the same without an account.
 
-- **Camera and barcode:** `+` opens the rear camera at once, with four modes at the bottom: Foto, Código, Etiqueta, Buscar. In Código the barcode (EAN-13, EAN-8, UPC-A, UPC-E, or a QR that holds a product number) is read on its own, the product is looked up in Open Food Facts, and one button adds it. The browser's own barcode detector is used when it has one; otherwise a WebAssembly reader (about 0.4 MB, vendored, downloaded only the first time it is needed). Products you have scanned are remembered on the device, so a repeat scan is instant and works offline. Without camera permission, `+` still works: you can type the code, choose a photo from the gallery, or search.
+- **Camera and barcode:** `+` opens the rear camera at once, with four modes at the bottom: Foto, Código, Etiqueta, Buscar. In Código the barcode (EAN-13, EAN-8, UPC-A, UPC-E, ITF-14, Code 128/39/93, Codabar, GS1 DataBar, or a QR that holds a product number; Data Matrix, PDF417 and Aztec are read too but only a product number becomes a product) is read on its own, the product is looked up in Open Food Facts, and one button adds it. The browser's own barcode detector is used when it has one; otherwise a WebAssembly reader (about 0.4 MB, vendored, downloaded only the first time it is needed). Products you have scanned are remembered on the device, so a repeat scan is instant and works offline. Without camera permission, `+` still works: you can type the code, choose a photo from the gallery, or search.
 
 - **Photo analysis (needs sign-in):** take a photo of the plate, an AI model (Gemini, through Firebase AI Logic) names the ingredients and estimates their grams, and you get one slider per ingredient plus the dish name to edit. Things it implies but cannot see, like cooking oil, are marked "(estimado)"; the confidence is a word, not a number. If the photo does not show what is inside (a wrapped burrito, a sealed package) or the model is unsure, it asks "¿Qué es o qué lleva?" before showing numbers. The photo is shrunk on your device, sent to Google for the analysis and not kept by foodie; only a 160 px thumbnail is saved with the meal. The Etiqueta mode uses the same path with an instruction to read a nutrition table; that reading has not been checked against real labels.
 
@@ -95,7 +96,7 @@ Not there yet: reading labels reliably (not checked against real labels), and an
 This is the part I would look at first in someone else's repo, so it is the part I spent the most care on.
 
 ```bash
-npm test          # 206 tests, no dependencies, about a second
+npm test          # 317 tests, no dependencies, about a second
 npm run coverage  # 98 % lines, 89 % branches overall; most of the pure core is at 100 % lines
 ```
 

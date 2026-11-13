@@ -29,10 +29,11 @@ const NO_CAMERA = {
  * @param {'photo'|'code'|'label'} [o.mode]
  * @param {(code:string)=>void} o.onCode               a valid product code was read (or typed)
  * @param {(picture:Blob, info:{label:boolean})=>void} o.onPhoto  a picture was taken or chosen
+ * @param {(mode:'photo'|'code'|'label')=>void} [o.onMode]  the person switched mode (so "+" can open in it next time)
  * @param {(notice?:string)=>void} o.onSearch          the person chose "Buscar" (or there is no camera and they asked for it)
  * @param {{mediaDevices?:object, vibrate?:(ms:number)=>void, detector?:object}} [o.env]  injected in tests
  */
-export function openCameraView({ mode: startMode = 'photo', onCode, onPhoto, onSearch, env = {} }) {
+export function openCameraView({ mode: startMode = 'photo', onCode, onPhoto, onSearch, onMode = () => {}, env = {} }) {
   const mediaDevices = env.mediaDevices !== undefined ? env.mediaDevices : navigator.mediaDevices;
   const vibrate = env.vibrate || ((ms) => { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) { /* not everywhere */ } });
   let mode = startMode === 'code' || startMode === 'label' ? startMode : 'photo';
@@ -154,6 +155,7 @@ export function openCameraView({ mode: startMode = 'photo', onCode, onPhoto, onS
   function setMode(next) {
     if (next === 'search') { done(() => onSearch(cameraOff ? 'La cámara no está disponible: busca el alimento a mano.' : '')); return; }
     mode = next;
+    onMode(next);
     dlg.dataset.mode = next;
     for (const b of modeButtons) b.setAttribute('aria-pressed', String(b.dataset.mode === next));
     if (scanner) { scanner.stop(); scanner = null; }

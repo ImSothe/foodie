@@ -71,9 +71,10 @@ const addDay = () => (state.selected > today ? today : state.selected);
 const openSearch = (notice = '') => openAddFood({ store, day: addDay(), today, notice });
 
 /** "+": the camera opens straight away. Code reads a barcode on its own, Foto and Etiqueta take a picture, Buscar leaves for the search. */
-function openCapture(mode = 'photo') {
+function openCapture(mode = store.getCameraMode()) {
   openCameraView({
     mode,
+    onMode: (m) => store.setCameraMode(m),
     onSearch: openSearch,
     onCode: (code) => openProduct({ store, day: addDay(), code, offClient, onSearch: () => openSearch(), onPhoto: () => openCapture('photo') }),
     onPhoto: (picture, { label }) => openPhoto({ store, day: addDay(), cloud, vision, picture, label, onSearch: () => openSearch(), onRetake: (m) => openCapture(m) }),
