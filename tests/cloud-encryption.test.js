@@ -389,3 +389,12 @@ test('plaintext junk the cleaners drop (an invalid meal, a weight out of range) 
   assert.equal('w' in backend.docs.get('users/alice/meta/weights'), false);
   assert.deepEqual(names(a), ['Bien']);
 });
+
+test('static: the passphrase sheet hands what is typed only to the cloud object and the strength check, and keeps nothing', () => {
+  const src = read('../app/ui/screens/passphrase.js').replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.doesNotMatch(src, /localStorage|sessionStorage|console\.|setItem|keyring|setSyncInfo|indexedDB/);
+  const uses = [...src.matchAll(/([A-Za-z.]+)\((?:first|pass|again)\.value\(\)/g)].map((m) => m[1]);
+  assert.ok(uses.length >= 4);
+  for (const fn of uses) assert.ok(['checkPassphrase', 'cloud.resetEncryption', 'cloud.setupPassphrase', 'cloud.unlock'].includes(fn), `the typed text goes to ${fn}`);
+  assert.match(src, /\.clear\(\)/, 'the fields are emptied once the passphrase was used');
+});

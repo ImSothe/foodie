@@ -23,7 +23,7 @@ export function checkPassphrase(text) {
   const ordered = chars.every((c, i) => i === 0 || Math.abs(c.codePointAt(0) - chars[i - 1].codePointAt(0)) === 1);
   if (COMMON.has(lower) || distinct <= 2 || ordered) return { ok: true, level: 0, hint: 'Es de las primeras que probaría cualquiera. Mejor una frase tuya, más larga.' };
   const digitsOnly = chars.every((c) => c >= '0' && c <= '9');
-  if (chars.length >= 16 || (chars.length >= 12 && !digitsOnly && distinct >= 8)) return { ok: true, level: 3, hint: 'Muy buena.' };
-  if (chars.length >= 12 || (!digitsOnly && chars.length >= 10)) return { ok: true, level: 2, hint: 'Buena. Una frase más larga es todavía mejor.' };
-  return { ok: true, level: 1, hint: 'Vale, pero corta. Una frase de varias palabras es más segura y más fácil de recordar.' };
+  if (chars.length >= 16 || (chars.length >= 12 && !digitsOnly && distinct >= 8)) return { ok: true, level: 3, hint: 'Larga y difícil de adivinar.' };
+  if (chars.length >= 12 || (!digitsOnly && chars.length >= 10)) return { ok: true, level: 2, hint: 'Una frase más larga es todavía mejor.' };
+  return { ok: true, level: 1, hint: 'Una frase de varias palabras es más segura y más fácil de recordar.' };
 }

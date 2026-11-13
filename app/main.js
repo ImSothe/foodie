@@ -11,6 +11,7 @@ import { openAddFood } from './ui/screens/add-food.js';
 import { openCameraView } from './ui/screens/camera.js';
 import { openProduct } from './ui/screens/product.js';
 import { openPhoto } from './ui/screens/photo.js';
+import { openPassphraseSheet } from './ui/screens/passphrase.js';
 import { isoDate, streak } from './core/dates.js';
 import { resolveRoute } from './core/router.js';
 import { store } from './data/store.js';
@@ -152,7 +153,16 @@ store.onStorageError((error) => toast(error.kind === 'write'
 await store.ready;
 store.subscribe(() => render(false));
 window.addEventListener('hashchange', () => render(true));
-cloud.onChange(() => { if (currentPath() === '/ajustes') render(false); });
+// The passphrase sheet opens by itself once per situation (a new account, a locked one), never on top of another sheet; Settings offers it again.
+let prompted = null;
+function promptForPassphrase() {
+  const need = cloud.needsPassphrase;
+  if (!need) { prompted = null; return; }
+  if (prompted === need || document.querySelector('dialog[open]')) return;
+  prompted = need;
+  openPassphraseSheet({ cloud, store, mode: need });
+}
+cloud.onChange(() => { if (currentPath() === '/ajustes') render(false); promptForPassphrase(); });
 render(true);
 registerServiceWorker();
 setTimeout(() => cloud.start(), 1500);        // after the first paint; only does anything on a device that signed in before

@@ -106,7 +106,7 @@ export function settingsScreen({ store, cloud, version, today }) {
         h('p', { class: 'small muted' }, 'Automático sigue el tema de tu móvil.'))),
     profileCard(store, today),
     dataCard(store, today),
-    cloudCard(cloud),
+    cloudCard(cloud, store),
     h('a', { class: 'card link-row', href: '#/kit' },
       h('span', null, h('span', { class: 'link-title' }, 'Sistema de diseño'), h('span', { class: 'small muted' }, 'Colores, tipografía y componentes de la app')),
       icon('right', 22)),

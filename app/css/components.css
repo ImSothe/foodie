@@ -646,6 +646,12 @@ body.is-onboarding #view { padding-bottom: 36px; }
 .center { text-align: center; }
 .btn-delete { color: var(--bad); }
 .btn-danger { background: var(--bad); color: var(--on-ink); }
+
+/* the passphrase sheet: three short lines with a small lock, then the fields */
+.passphrase { display: grid; gap: 14px; }
+.passphrase-line { display: flex; align-items: flex-start; gap: 10px; color: var(--ink-2); line-height: 1.4; }
+.passphrase-line svg { flex: none; margin-top: 2px; color: var(--ink); }
+.passphrase-forgot { display: grid; gap: 4px; }
 .link-btn { text-decoration: none; margin-top: 12px; }
 
 /* ---------- empty day ---------- */
