@@ -55,6 +55,7 @@ That one rule shaped the rest:
 | No framework, no build step, no runtime dependencies | The app is a handful of screens. Plain ES modules are served as written, there is no supply chain to audit, and the Content Security Policy can stay at `script-src 'self'`. | More hand-written UI code, and a small tool (`npm run stamp`) to version the offline cache. |
 | The DOM is built with `createElement` and text nodes, never from HTML strings | Text from a food database or an AI must never be able to run as code. This makes that a property of the code, not a matter of remembering to escape. | A slightly more verbose way to write screens. |
 | Local-first: the app works fully without an account | It opens instantly, works offline, and sign-in becomes a backup feature instead of a gate. | Sync has to resolve conflicts: every record carries its edit time, deletions travel as tombstones, and merging is tested to give the same result in any order. |
+| Data on the device lives in IndexedDB, behind the same synchronous store | `localStorage` holds about 5 MB: months of use, but not a year with photo thumbnails. IndexedDB has no such ceiling, and the store keeps its simple synchronous API by loading everything into memory at start and writing changes behind (400 ms, and on hide or close). A one-time migration moves old data over, verified by reading it back before anything is trusted. | A short wait at start while the database opens (about 20 ms for a year of data here), a 2.5 s timeout with a visible warning if it never opens, and a last edit can be lost if the tab is killed within 400 ms. |
 | Carbohydrate means available carbohydrate, fibre counted apart | It is what EU labels and Open Food Facts use. Mixing it with the US "total carbohydrate" definition would silently double-count fibre. | US-sourced values are converted on import, and the energy check uses the EU factors (fibre at 2 kcal/g). |
 | Food values come from USDA FoodData Central, not written by hand | The first table was typed from memory and passed every test, because the tests only checked internal consistency. I then compared it with the Spanish BEDCA database and found real gaps. BEDCA's terms do not allow republishing, so the table was rebuilt from USDA SR Legacy (public domain), each entry carrying its source id. | Seven Spain-specific foods have no USDA entry and are labelled `estimate`. |
 | Goals from a standard formula, with floors | Mifflin-St Jeor for energy, protein and fat per kg of body weight, sex-specific reference intakes. A deficit never goes below a safe floor, and the app says when the floor was applied. | These are estimates, and the app says so. It is not medical advice. |
@@ -103,7 +104,7 @@ Not there yet: reading labels reliably (not checked against real labels), and an
 This is the part I would look at first in someone else's repo, so it is the part I spent the most care on.
 
 ```bash
-npm test          # 317 tests, no dependencies, about a second
+npm test          # 358 tests, no dependencies, about a second
 npm run coverage  # 98 % lines, 89 % branches overall; most of the pure core is at 100 % lines
 ```
 
@@ -122,7 +123,7 @@ The review that led to this found real defects, each now covered by a test that 
 ```
 app/
   core/      nutrition, goals, data shapes, routing, search, progress, dates (pure, no DOM, 100 % line coverage)
-  data/      local store (validated on load, size-capped) and the table of foods
+  data/      local store (IndexedDB, validated on load, size-capped) and the table of foods
   ui/        DOM helper, ring, week strip, ingredient editor, screens
   css/       design tokens, base, components (light and dark from one set of tokens)
   sw.js      service worker: the whole app cached as one version

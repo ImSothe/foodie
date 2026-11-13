@@ -1,6 +1,6 @@
 # Security
 
-foodie is a static web app (HTML, CSS and JavaScript served by GitHub Pages). Everything you enter stays in your browser's `localStorage`. An account is optional: if you sign in with Google, a copy is kept in Firestore under your own user id, and nothing else in the app talks to the network. This page says what is defended, how that is checked, and what is not.
+foodie is a static web app (HTML, CSS and JavaScript served by GitHub Pages). Everything you enter stays in your browser's IndexedDB (the theme choice alone stays in `localStorage`). An account is optional: if you sign in with Google, a copy is kept in Firestore under your own user id, and nothing else in the app talks to the network. This page says what is defended, how that is checked, and what is not.
 
 ## Reporting a vulnerability
 
@@ -15,10 +15,10 @@ Every row names the test that fails if the defence is removed. Tests are in `tes
 | Script injection through text (meal names, food names, backups) | The UI is built only with `createElement` and text nodes; no `innerHTML`, no `eval`; strict CSP with no inline code | `static.test.js` (CSP, no HTML from strings), `dom.test.js` (text becomes text nodes) |
 | An attribute or tag that executes code | `app/ui/dom.js` drops `on*` attributes that are not functions, `srcdoc`, invalid attribute names; refuses `script`, `iframe`, `object`, `embed`, `style`, `link`, `meta`, `base`; URL attributes accept only relative URLs, `#fragments`, `blob:` and raster `data:image/` | `dom.test.js` |
 | Crafted link (`#constructor`, `#__proto__`, huge or malformed hashes) | Routes are resolved by comparing with an explicit list, never by object lookup | `router.test.js` |
-| Hostile data in `localStorage` (a corrupted file, a script on the same origin) | Everything read back is validated: ids match `^[A-Za-z0-9_-]{1,64}$` and never `__proto__`, `constructor`, `toString`...; maps of days, meals and weights have no prototype; numbers are finite and in range; unknown fields are dropped | `security.test.js` (fuzzing of every cleaner with 33,000 seeded inputs: never throws, valid shape, idempotent, prototype untouched; store under attack) |
+| Hostile data in local storage (a corrupted database, a script on the same origin) | Everything read back is validated: ids match `^[A-Za-z0-9_-]{1,64}$` and never `__proto__`, `constructor`, `toString`...; maps of days, meals and weights have no prototype; numbers are finite and in range; unknown fields are dropped | `security.test.js` (fuzzing of every cleaner with 33,000 seeded inputs: never throws, valid shape, idempotent, prototype untouched; store under attack) |
 | Control, zero-width and bidi characters in names (spoofing, broken layout) | Names are single-line: those characters are removed, whitespace collapsed, text cut by code points | `security.test.js` (defect 3 tests, XSS corpus) |
-| Runaway data (memory, slow start) | Caps: 100 meals per day, 4,000 days and weights, 300 favourites, 5 MB per stored value (larger values are not parsed and the problem is reported) | `security.test.js` (defect 5 tests) |
-| Another app or the network reading data through this one | CSP `connect-src 'self'`, no `postMessage`, cookies, `window.name`, IndexedDB; `localStorage` only in `app/data/store.js` and `app/boot.js` for the theme; keys start with `fd.` | `static.test.js` (security guards) |
+| Runaway data (memory, slow start) | Caps: 100 meals per day, 4,000 days and weights, 300 favourites, 32 MB per stored value and 64 MB in total (larger values are not parsed or written, and the problem is reported), at most 20 photo thumbnails per day and among the favourites | `security.test.js` (defect 5 tests) |
+| Another app or the network reading data through this one | CSP `connect-src 'self'`, no cookies, `window.name`; `indexedDB`, `BroadcastChannel`, `postMessage` and `localStorage` appear only in `app/data/idb-storage.js` (and `localStorage` also in `app/boot.js` for the theme), `app/data/store.js` touches no storage API; keys start with `fd.` | `static.test.js` (security guards) |
 | Service worker serving or caching something it should not | Only same-origin GET requests are answered; only the app's own files are stored; only `foodie-*` caches are deleted | `static.test.js` |
 | Dependency and CI supply chain | No runtime dependencies; GitHub Actions pinned by commit hash with least privilege | `static.test.js` |
 
@@ -27,11 +27,30 @@ Fuzzing is deterministic. If it ever fails, the message prints the seed; replay 
 ## What is NOT defended
 
 - **Local data is not encrypted.** Anyone with access to your browser profile, or any script running on the same origin, can read it.
-- **One origin for every project of the account.** GitHub Pages serves all projects of `imsothe.github.io` from the same origin. A script-injection bug in a sibling app could read foodie's `localStorage` and cache, and a bug in foodie could do the same to them. The `fd.` key prefix and `foodie-` cache prefix prevent accidents, not attacks. A custom domain for foodie would remove this exposure.
+- **One origin for every project of the account.** GitHub Pages serves all projects of `imsothe.github.io` from the same origin. A script-injection bug in a sibling app could read foodie's IndexedDB, `localStorage` and cache, and a bug in foodie could do the same to them. The `fd.` key prefix and `foodie-` cache prefix prevent accidents, not attacks. A custom domain for foodie would remove this exposure.
 - **No integrity check of the backup file** you export: importing is not built, and nothing signs the file.
 - **Look-alike text.** Names are cleaned of control and bidi characters but not of look-alike letters or invisible filler characters outside that list.
 - **Nutrition and goal figures are estimates** (a standard formula and rounded food tables), not medical advice. They are not verified by this project's tests, which check only internal consistency.
 - **Browser and extensions** are outside this app's control, and the checks above were run in a recent Chromium and Node, not on every browser.
+
+## Local storage (IndexedDB): what is defended and what is not
+
+Data used to live in `localStorage` (about 5 MB per origin, enough for months but not for a year with photo thumbnails). It now lives in an IndexedDB database `foodie` (one object store, one record per `fd.*` key). The store keeps the same synchronous API: everything is loaded into memory at start (`await store.ready` in `app/main.js`) and changes are written behind, after 400 ms, when the page is hidden or closed, in one transaction.
+
+| Risk | Defence | Test |
+|---|---|---|
+| Losing data when moving from `localStorage` | One-time migration through the same cleaners, in one transaction with a marker; the result is read back and compared with what was meant to be written. If anything differs, the transaction is rolled back and `localStorage` stays the source. A migration interrupted after the commit is recognised by the marker and finished; `localStorage` is never deleted before the read-back succeeds | `idb-storage.test.js` (success, failed verification, interrupted, unreadable keys) |
+| IndexedDB missing, blocked, slow or full (private modes, quota, another tab holding an old version) | Falls back to `localStorage` if it works, otherwise to memory, and the app says "no se puede guardar" instead of pretending; opening has a 2.5 s timeout; a failed write is reported and retried, never silently dropped | `idb-storage.test.js` (open fails, blocked, timeout, write errors, quota) |
+| Every existing hostile-data defence still holding on the new backend | The store, fuzzing, cloud-sync and cache tests run a second time, unchanged, against the real IndexedDB layer on a hand-made fake database | `idb-backend.test.js` |
+| Two tabs overwriting each other | A `BroadcastChannel` tells the other tab which keys changed; it reloads those through the cleaners and ignores messages that are not well-formed. Unchanged text is never written, so there are no echo loops; keys with unsaved local edits are not overwritten | `idb-storage.test.js` (two tabs, no echo) |
+| A photo thumbnail making a cloud day document too big | Thumbnails are at most 12 KB; at most 20 per day and 20 among favourites (a meal past the cap is saved without its thumbnail), so a Firestore day stays far below its 1 MiB limit | `thumbs.test.js` |
+
+Not defended, and worth knowing:
+
+- **A script on the same origin can read the database**, as it could read `localStorage`. `BroadcastChannel` messages are also readable by same-origin scripts; they carry only the names of changed keys, never data.
+- **Eviction.** Browsers may delete site data under storage pressure or after a long time without use (Safari does this for sites that are not installed). The app asks nothing of the browser (it does not request persistent storage), so on-device data without a cloud copy can disappear. The export button and the optional cloud copy are the backups.
+- **The write-behind window.** A crash or a killed tab in the 400 ms before a write can lose the last edit. The page flushes when it is hidden or closed; there is no flush on a power cut.
+- **Real-browser coverage is Chromium only.** The tests use a fake IndexedDB; Safari's behaviour (including on an installed iPhone app) has not been verified.
 
 ## Cloud copy (optional): what is defended and what is not
 
@@ -58,7 +77,7 @@ Not defended, and worth knowing:
 |---|---|---|
 | A scanned code that opens something | Scanned text is never opened or navigated to: only a bare number or a GS1 Digital Link with a valid check digit becomes a product code, everything else is ignored | `off.test.js`, `scanner.test.js` (links, Wi-Fi codes, bad check digits) |
 | A hostile product record (name with markup, a picture from another host, absurd numbers) | The record is cleaned like any other text and range-checked before it is cached or shown; the picture must be on `images.openfoodfacts.org`; rendering is by text nodes only | `off.test.js`, `off-client.test.js`, `dom.test.js` |
-| A hostile or corrupt product cache in `localStorage` (`fd.products`) | Validated on load like every key, capped at 200 products and 5 MB, never exported or synced | `off-client.test.js` |
+| A hostile or corrupt product cache in local storage (`fd.products`) | Validated on load like every key, capped at 200 products, never exported or synced | `off-client.test.js` |
 | The camera staying on | Every track is stopped when the view closes, the route changes or the page is hidden (verified in Chromium with a simulated camera) | `scanner.test.js`; browser check |
 | Loading the barcode reader from a CDN | The reader and its WebAssembly are vendored in `app/vendor/lazy/` and served from this origin; the library's default CDN address is overridden | `static.test.js` (vendored files listed by exact path) |
 
