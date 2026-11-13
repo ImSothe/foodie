@@ -9,7 +9,8 @@
     "coverage": "node --test --experimental-test-coverage",
     "dev": "node tools/dev_server.mjs 8790",
     "stamp": "node tools/stamp.mjs",
-    "icons": "python tools/make_icons.py"
+    "icons": "python tools/make_icons.py",
+    "test:rules": "npm --prefix tests/rules test"
   },
   "license": "SEE LICENSE IN LICENSE.md"
 }

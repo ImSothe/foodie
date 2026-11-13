@@ -1,0 +1,15 @@
+{
+  "name": "foodie-rules-tests",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Runs firestore.rules against the real Firestore emulator. Tooling only: nothing here ships with the app, and the root npm test never loads it.",
+  "scripts": {
+    "test": "firebase emulators:exec --only firestore --project demo-foodie \"node --test --test-concurrency=1 *.spec.mjs\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "6.0.0",
+    "firebase": "13.3.0",
+    "firebase-tools": "15.36.0"
+  }
+}

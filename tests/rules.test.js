@@ -1,8 +1,11 @@
-/* Static checks on firestore.rules. These read the rules as text: they catch a rule that was opened up or a validation that
-   was dropped, but they do NOT run the rules. Running them needs the Firestore emulator (see SECURITY.md, "Planned"). */
+/* Static checks on firestore.rules, in the default suite (no Java, no network). They read the rules as text: they catch a rule that was
+   opened up or a validation that was dropped, but they do NOT run the rules.
+   The rules ARE executed, against the real Firestore emulator, by tests/rules/ (npm run test:rules; CI job "rules"): who can read and write
+   what, every validator at its limits, and the real patches of app/core/cloudmap.js replayed from two devices. That tooling is kept out of
+   the app and out of this suite; the last test below only guards how it is installed. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const rules = readFileSync(fileURLToPath(new URL('../firestore.rules', import.meta.url)), 'utf8').replace(/\/\/.*$/gm, '');
@@ -63,4 +66,22 @@ test('rules: reads and deletes never look at request.resource (it is null there)
   const noPayload = statements.filter((s) => !s.ops.some((o) => ['create', 'update', 'write'].includes(o)));
   assert.ok(noPayload.length >= 7);
   for (const s of noPayload) assert.doesNotMatch(s.cond, /request\.resource/, s.ops.join(','));
+});
+
+test('the emulator tooling stays in tests/rules/: pinned exactly, locked, and absent from the app and the root package', () => {
+  const root = JSON.parse(readFileSync(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8'));
+  assert.equal(root.dependencies, undefined);
+  assert.equal(root.devDependencies, undefined);
+  assert.equal(root.scripts.test, 'node --test', 'the default suite does not start an emulator');
+  assert.match(root.scripts['test:rules'], /tests[/]rules/);
+  const dir = new URL('./rules/', import.meta.url);
+  const pkg = JSON.parse(readFileSync(new URL('package.json', dir), 'utf8'));
+  assert.equal(pkg.private, true);
+  assert.deepEqual(Object.keys(pkg.devDependencies).sort(), ['@firebase/rules-unit-testing', 'firebase', 'firebase-tools']);
+  for (const [name, version] of Object.entries(pkg.devDependencies)) assert.match(version, /^[0-9]+[.][0-9]+[.][0-9]+$/, `${name} must be pinned to an exact version`);
+  assert.equal(pkg.dependencies, undefined);
+  const lock = JSON.parse(readFileSync(new URL('package-lock.json', dir), 'utf8'));
+  assert.equal(lock.lockfileVersion >= 3, true);
+  for (const [name, version] of Object.entries(pkg.devDependencies)) assert.equal(lock.packages[`node_modules/${name}`].version, version, `lockfile has ${name}@${version}`);
+  assert.ok(existsSync(new URL('rules.spec.mjs', dir)) && existsSync(new URL('replay.spec.mjs', dir)));
 });
