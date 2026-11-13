@@ -104,7 +104,8 @@ Not there yet: reading labels reliably (not checked against real labels), and an
 This is the part I would look at first in someone else's repo, so it is the part I spent the most care on.
 
 ```bash
-npm test          # 358 tests, no dependencies, about a second
+npm test          # 359 tests, no dependencies, about a second
+npm run test:rules # firestore.rules against the real Firestore emulator (needs Java 21 and `npm ci --prefix tests/rules`)
 npm run coverage  # 98 % lines, 89 % branches overall; most of the pure core is at 100 % lines
 ```
 
