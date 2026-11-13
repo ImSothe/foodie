@@ -86,10 +86,10 @@ test('the emulator tooling stays in tests/rules/: pinned exactly, locked, and ab
   assert.ok(existsSync(new URL('rules.spec.mjs', dir)) && existsSync(new URL('replay.spec.mjs', dir)));
 });
 
-test('rules: the encryption rollout is explicit: one literal switch, phase 1 until every phone has the encrypting app', () => {
+test('rules: the encryption rollout is explicit: one literal switch between phase 1 and phase 2', () => {
   const flags = [...rules.matchAll(/function plaintextAllowed\(\)\s*\{\s*return\s+(true|false);\s*\}/g)];
   assert.equal(flags.length, 1, 'exactly one plaintextAllowed() with a literal answer');
-  assert.equal(flags[0][1], 'true', 'PHASE 1 (plaintext and encrypted documents accepted). Phase 2 is the commit that flips this to false, published only after the friends updated.');
+  assert.equal(flags[0][1], 'false', 'PHASE 2 (only encrypted documents accepted): this is the commit that flipped it. It must not be published until every phone has the encrypting app; the previous commit has phase 1.');
   assert.equal([...rules.matchAll(/plaintextAllowed\(\)/g)].length, 5, 'declared once and used by the four document validators');
 });
 

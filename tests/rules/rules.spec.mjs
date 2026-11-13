@@ -6,11 +6,11 @@ import {
   doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, collection, collectionGroup, query, where, deleteField, writeBatch,
 } from 'firebase/firestore';
 import { assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
-import { createEnv, seed, VALID, pathsOf, ALICE, BOB, DAY, meal, many, profile } from './helpers.mjs';
+import { createEnv, rulesFor, seed, VALID, pathsOf, ALICE, BOB, DAY, meal, many, profile } from './helpers.mjs';
 
 let env; let aliceDb; let bobDb; let anonDb;
 before(async () => {
-  env = await createEnv();
+  env = await createEnv(rulesFor(1), 'demo-foodie-base');         // phase 1: plaintext documents are valid here; phase 2 and the encrypted shapes are in encryption.spec.mjs
   aliceDb = env.authenticatedContext(ALICE).firestore();       // one instance per user: a batch cannot mix instances
   bobDb = env.authenticatedContext(BOB).firestore();
   anonDb = env.unauthenticatedContext().firestore();

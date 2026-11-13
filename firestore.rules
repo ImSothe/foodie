@@ -32,11 +32,14 @@ service cloud.firestore {
     }
 
     // ---- end-to-end encryption of the cloud copy (core/crypto.js, core/cloudseal.js) -------------------------------------------------
-    // PHASE 1 (now): plaintext documents (written by app versions from before encryption) and encrypted ones are both accepted, so a phone that
-    // still runs an old copy of the app keeps working while everybody updates. PHASE 2: change plaintextAllowed() to return false and publish;
-    // from then on only the encrypted fields are accepted. That is the ONLY line that differs between the two phases.
+    // PHASE 1: plaintext documents (written by app versions from before encryption) and encrypted ones are both accepted, so a phone that
+    // still runs an old copy of the app keeps working while everybody updates. PHASE 2: plaintextAllowed() returns false; from then on only the
+    // encrypted fields are accepted. That is the ONLY line that differs between the two phases.
+    //
+    // >>> THIS FILE IS PHASE 2. Do not publish it in the Firebase console until EVERY phone that uses foodie has the encrypting app and has
+    // >>> been migrated (the Settings card says "Cifrado activado"). Until then publish the previous version of this file (return true).
     function plaintextAllowed() {
-      return true;
+      return false;
     }
 
     // a sealed record: { v: 1, iv: 12 random bytes as 16 base64 characters, ct: ciphertext with its 16-byte tag as base64 }
