@@ -228,19 +228,30 @@ test('service worker: never caches a response from another origin', () => {
   for (const url of computeStamp().shell) assert.ok(url === './' || /^\.\/[A-Za-z0-9_./-]+$/.test(url), `${url} is not a relative path of the app`);
 });
 
-test('forbidden APIs: postMessage, document.cookie, window.name, indexedDB and web storage stay out of the UI', () => {
+test('forbidden APIs: postMessage, document.cookie, window.name, IndexedDB, BroadcastChannel and web storage stay out of the UI', () => {
+  // Who may use what (changed deliberately when the data moved from localStorage to IndexedDB):
+  //   data/idb-storage.js  owns IndexedDB (the database), BroadcastChannel and its postMessage (telling other tabs which keys changed, and nothing else),
+  //                        and still reads localStorage once for the migration and as the fallback when IndexedDB cannot be used;
+  //   boot.js              owns localStorage for the theme only (fd.theme), because it must run before the first paint;
+  //   data/store.js        touches no storage API at all any more: it gets a storage object from idb-storage.js.
+  const OWNERS = { indexedDB: ['data/idb-storage.js'], BroadcastChannel: ['data/idb-storage.js'], postMessage: ['data/idb-storage.js'], localStorage: ['data/idb-storage.js', 'boot.js'] };
   const banned = [[/\bpostMessage\b/, 'postMessage'], [/document\.cookie/, 'document.cookie'], [/\bwindow\.name\b/, 'window.name'], [/\bindexedDB\b/, 'indexedDB'],
-    [/\bsessionStorage\b/, 'sessionStorage'], [/\blocalStorage\b/, 'localStorage'], [/\bcaches\b/, 'caches']];
+    [/\bBroadcastChannel\b/, 'BroadcastChannel'], [/\bsessionStorage\b/, 'sessionStorage'], [/\blocalStorage\b/, 'localStorage'], [/\bcaches\b/, 'caches']];
   for (const f of [...ownJs, 'sw.js', 'boot.js']) {
     const code = appSource(f);
     for (const [re, name] of banned) {
-      if (name === 'localStorage' && (f === 'data/store.js' || f === 'boot.js')) continue;   // the only two owners of localStorage
+      if ((OWNERS[name] || []).includes(f)) continue;
       if (name === 'caches' && f === 'sw.js') continue;                                       // cache storage belongs to the service worker
       assert.ok(!re.test(code), `${f} uses ${name}`);
     }
   }
   const boot = appSource('boot.js');
   assert.ok([...boot.matchAll(/(?:getItem|setItem)\(\s*['"]([^'"]+)/g)].every((m) => m[1] === 'fd.theme'), 'boot.js may only touch fd.theme');
+  assert.ok(!/localStorage|indexedDB/.test(appSource('data/store.js')), 'the store must not touch a storage API itself');
+  // the one place that writes to IndexedDB uses one database and one object store of ours, and only keys that start with fd.
+  const idb = appSource('data/idb-storage.js');
+  assert.ok(/DB_NAME = 'foodie'/.test(idb) && /STORE_NAME = 'kv'/.test(idb) && /MARKER_KEY = 'fd\.migrated'/.test(idb));
+  assert.ok(!/indexedDB\.(deleteDatabase|databases)/.test(idb), 'it never deletes or lists databases of the origin (other apps have theirs)');
 });
 
 test('main.js resolves routes through resolveRoute and never indexes ROUTES with the address', () => {

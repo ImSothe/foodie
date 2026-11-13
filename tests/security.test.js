@@ -16,7 +16,7 @@ import {
 import * as inv from './helpers/invariants.js';
 
 const { createStore, STORAGE_KEYS } = storeModule;
-const MAX_STORED_CHARS = 5 * 1024 * 1024;                       // the policy: a stored value over 5 MB is not parsed
+const MAX_STORED_CHARS = 32 * 1024 * 1024;                      // the policy: a stored value over 32 M characters is not parsed (it was 5 MB while the data lived in localStorage)
 const isStoreKey = (k) => (storeModule.isStoreKey ? storeModule.isStoreKey(k) : false);
 const LIMITS = { mealsPerDay: 100, days: 4000, weights: 4000, saved: 300 };
 const cp = (...codes) => String.fromCodePoint(...codes);
@@ -306,8 +306,8 @@ test('defect 5: at most 300 favourites; the 301st is refused, not silently dropp
   assert.equal(s.getSaved().length, 300);
 });
 
-test('defect 5: a stored value over 5 MB is not parsed, is treated as empty, and is reported through the storage-error listener', () => {
-  const big = 'x'.repeat(6 * 1024 * 1024);
+test('defect 5: a stored value over the cap is not parsed, is treated as empty, and is reported through the storage-error listener', () => {
+  const big = 'x'.repeat(MAX_STORED_CHARS + 1);
   let parsed = 0;
   const realParse = JSON.parse;
   JSON.parse = (...a) => { parsed += 1; return realParse(...a); };
@@ -336,7 +336,9 @@ test('defect 5: reload() reports a value that became too large in another tab', 
   const s = createStore(st, { uuid: () => 'u1' });
   const kinds = [];
   s.onStorageError((e) => kinds.push(e.kind));
-  st.m.set(STORAGE_KEYS.days, 'y'.repeat(MAX_STORED_CHARS + 1));
+  // With the IndexedDB storage (FOODIE_BACKEND=idb) the storage itself refuses to hold a value this large, so another tab cannot have written it:
+  // that is the stronger guarantee, and then there is nothing to reload.
+  try { st.m.set(STORAGE_KEYS.days, 'y'.repeat(MAX_STORED_CHARS + 1)); } catch (e) { assert.match(e.message, /too large/); assert.equal(process.env.FOODIE_BACKEND, 'idb'); return; }
   s.reload();
   assert.deepEqual(kinds, ['too-large']);
 });

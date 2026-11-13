@@ -29,6 +29,15 @@ export const MAX_NAME = 80;
 export const MAX_TOMBSTONES = 500;
 /** Longest data URL of the small JPEG kept with a photo meal (the photo itself is never stored). */
 export const THUMB_MAX_CHARS = 12 * 1024;
+/**
+ * Thumbnails kept per day and among the favourites. A day document in the cloud must stay far below Firestore's 1 MiB: 20 x 12 KB is
+ * 240 KB, while 100 meals x 12 KB would not fit. Past the cap a meal is still saved, it just has no thumbnail.
+ */
+export const MAX_THUMBS_PER_DAY = 20;
+export const MAX_THUMBS_SAVED = 20;
+
+/** How many of these meals carry a thumbnail, not counting the one with id `except`. */
+export const countThumbs = (meals, except = null) => Object.values(meals || {}).filter((m) => m && m.thumb && m.id !== except).length;
 /** Largest edit stamp accepted (the year 3000): anything beyond is not a time. */
 export const MAX_STAMP = 32503680000000;
 export const MAX_ITEM_NAME = 120;
@@ -159,10 +168,15 @@ export const cleanDay = guard((raw) => {
   const day = emptyDay();
   if (isObj(raw.meals)) {
     let count = 0;
+    let thumbs = 0;
     for (const m of Object.values(raw.meals)) {
       if (count >= MAX_MEALS_PER_DAY) break;
       const meal = cleanMeal(m);
-      if (meal && !(meal.id in day.meals)) { day.meals[meal.id] = meal; count += 1; }
+      if (meal && !(meal.id in day.meals)) {
+        if (meal.thumb) { if (thumbs >= MAX_THUMBS_PER_DAY) delete meal.thumb; else thumbs += 1; }
+        day.meals[meal.id] = meal;
+        count += 1;
+      }
     }
   }
   day.waterMl = Math.round(numIn(raw.waterMl, 0, MAX_WATER_ML) || 0);
@@ -269,9 +283,14 @@ export const cleanSaved = guard((raw) => {
   if (!Array.isArray(raw)) return [];
   const seen = new Set();
   const out = [];
+  let thumbs = 0;
   for (const m of raw) {
     const meal = cleanMeal(m);
-    if (meal && !seen.has(meal.id)) { seen.add(meal.id); out.push(meal); }
+    if (meal && !seen.has(meal.id)) {
+      if (meal.thumb) { if (thumbs >= MAX_THUMBS_SAVED) delete meal.thumb; else thumbs += 1; }
+      seen.add(meal.id);
+      out.push(meal);
+    }
     if (out.length >= MAX_SAVED) break;
   }
   return out;

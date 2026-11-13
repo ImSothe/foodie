@@ -4,10 +4,8 @@ import { recentMeals, copyOfMeal, MAX_RECENTS } from '../app/core/recents.js';
 import { createStore, STORAGE_KEYS } from '../app/data/store.js';
 import { sliderMaxFor, MAX_GRAMS } from '../app/ui/meal-editor.js';
 
-const memory = (initial = {}) => {
-  const m = new Map(Object.entries(initial));
-  return { m, getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => { m.set(k, String(v)); }, removeItem: (k) => { m.delete(k); } };
-};
+import { memoryStorage } from './helpers/memory-storage.js';
+const memory = (initial = {}) => memoryStorage(initial);   // a Map, or (FOODIE_BACKEND=idb) the real IndexedDB storage layer
 let n = 0;
 const env = { uuid: () => `id-${++n}`, now: () => new Date(2026, 10, 12, 9, 30) };
 const per100 = { kcal: 100, protein_g: 10, carbs_g: 10, fat_g: 1 };

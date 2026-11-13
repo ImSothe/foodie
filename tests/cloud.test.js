@@ -8,7 +8,8 @@ const DAY = '2026-11-12';
 const per100 = { kcal: 165, protein_g: 31, carbs_g: 0, fat_g: 3.6 };
 const food = (name) => ({ name, slot: 'Almuerzo', source: 'db', items: [{ name, grams: 150, per100 }] });
 const profile = { sex: 'male', birthYear: 1990, heightCm: 180, weightKg: 80, activity: 'moderate', goal: 'maintain', pace: 0.2 };
-const memory = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => { m.set(k, String(v)); }, removeItem: (k) => { m.delete(k); } }; };
+import { memoryStorage } from './helpers/memory-storage.js';
+const memory = () => memoryStorage();           // a Map, or (FOODIE_BACKEND=idb) the real IndexedDB storage layer
 const tick = (ms = 15) => new Promise((r) => setTimeout(r, ms));
 const plain = (v) => JSON.parse(JSON.stringify(v));
 

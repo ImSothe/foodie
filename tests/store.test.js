@@ -2,10 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createStore, STORAGE_KEYS } from '../app/data/store.js';
 
-const memory = (initial = {}) => {
-  const m = new Map(Object.entries(initial));
-  return { m, getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => { m.set(k, String(v)); }, removeItem: (k) => { m.delete(k); } };
-};
+import { memoryStorage } from './helpers/memory-storage.js';
+const memory = (initial = {}) => memoryStorage(initial);   // a Map, or (FOODIE_BACKEND=idb) the real IndexedDB storage layer
 let n = 0;
 const env = { uuid: () => `id-${++n}`, now: () => new Date(2026, 10, 12, 9, 30) };
 const plain = (x) => JSON.parse(JSON.stringify(x));

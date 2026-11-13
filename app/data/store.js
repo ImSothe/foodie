@@ -1,9 +1,8 @@
-/* foodie · local store. Local-first: reads are synchronous so the app paints instantly, and every change is
-   written to localStorage right away. All mutations go through this one place, so cloud sync can be hooked in
-   later without touching the screens.
+/* foodie · local store. Local-first: reads are synchronous, from memory, so the app paints instantly; every change is handed to a
+   storage object (IndexedDB behind a write-behind cache in the app, see data/idb-storage.js; a plain Map in tests) and goes out to the
+   disk shortly after. All mutations go through this one place, so cloud sync can be hooked in without touching the screens.
 
-   Keys (the origin is shared with other apps, so they all start with "fd."):
-   fd.profile  fd.goals  fd.days  fd.saved  fd.weights  fd.sync (edit stamps and what changed since the last cloud sync)
+   The keys are in data/state-io.js (all start with "fd.": the origin is shared with other apps).
    Whatever is read back is validated by core/schema.js: stored data is never trusted blindly. A stored value
    larger than MAX_STORED_CHARS is not even parsed. */
 import { isIso } from '../core/dates.js';
@@ -12,22 +11,12 @@ import { cleanProfile, computePlan, toGoals } from '../core/goals.js';
 import {
   cleanMeal, cleanDays, cleanGoalsHistory, cleanSaved, cleanWeights, cleanGoals, goalsFor as goalsInForce, setGoalsEntry,
   emptyDay, isEmptyDay, loggedDays as loggedDaysOf, mealsOfDay, clampWater, clampSteps, isId, nullMap, cleanSyncMeta, emptySyncMeta,
-  TIME, MAX_MEALS_PER_DAY, MAX_DAYS, MAX_SAVED,
+  TIME, MAX_MEALS_PER_DAY, MAX_DAYS, MAX_SAVED, MAX_THUMBS_PER_DAY, MAX_THUMBS_SAVED, countThumbs,
 } from '../core/schema.js';
 
-export const STORAGE_KEYS = {
-  profile: 'fd.profile', goals: 'fd.goals', days: 'fd.days', saved: 'fd.saved', weights: 'fd.weights', sync: 'fd.sync', products: 'fd.products', ui: 'fd.ui',
-};
-/** Camera modes the app remembers between visits. */
-export const CAMERA_MODES = ['photo', 'code', 'label'];
-const cleanUi = (raw) => ({ mode: raw && typeof raw === 'object' && CAMERA_MODES.includes(raw.mode) ? raw.mode : 'photo' });
-const KEY_NAMES = new Set(Object.values(STORAGE_KEYS));
-
-/** Longest stored value (in characters) that is parsed at all. Real data stays far below it. */
-export const MAX_STORED_CHARS = 5 * 1024 * 1024;
-
-/** True for a `storage` event that concerns this app's data (another tab wrote it, or the storage was cleared). */
-export const isStoreKey = (key) => key === null || KEY_NAMES.has(key);
+import { STORAGE_KEYS, DATA_KEYS, CAMERA_MODES, cleanUi, MAX_STORED_CHARS, isStoreKey, problem, loadState } from './state-io.js';
+import { openPersistentStorage } from './idb-storage.js';
+export { STORAGE_KEYS, CAMERA_MODES, MAX_STORED_CHARS, isStoreKey };
 
 const fallbackId = () => `m-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 const defaultId = () => (globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function' ? globalThis.crypto.randomUUID() : fallbackId());
@@ -36,27 +25,14 @@ const hhmm = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 const localIso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 /** Reads a property of something that may be hostile (a throwing getter gives undefined). */
 const peek = (obj, key) => { try { return obj === null || obj === undefined ? undefined : obj[key]; } catch (e) { return undefined; } };
-const problem = (kind, key, cause) => Object.assign(new Error(`foodie store: ${kind} (${key})`), { kind, key, cause });
-
-/** localStorage when there is a browser and it works, otherwise memory (private mode, blocked storage, Node). */
-function browserStorage() {
-  try {
-    if (typeof document !== 'undefined' && globalThis.localStorage) {
-      const probe = '__fd_probe__';
-      globalThis.localStorage.setItem(probe, '1');
-      globalThis.localStorage.removeItem(probe);
-      return globalThis.localStorage;
-    }
-  } catch (e) { /* blocked: keep the data in memory for this session */ }
-  const mem = new Map();
-  return { getItem: (k) => (mem.has(k) ? mem.get(k) : null), setItem: (k, v) => { mem.set(k, String(v)); }, removeItem: (k) => { mem.delete(k); } };
-}
 
 /**
- * @param {{getItem(k:string):string|null, setItem(k:string,v:string):void, removeItem(k:string):void}} storage
+ * @param {{getItem(k:string):string|null, setItem(k:string,v:string):void, removeItem(k:string):void, setLazy?:Function, onError?:Function, onExternalChange?:Function}} storage
+   (a plain Map-like storage is enough; the optional methods are what the IndexedDB storage adds)
  * @param {{uuid?:()=>string, now?:()=>Date}} [env] injectable for tests
  */
-export function createStore(storage, env = {}) {
+export function createStore(initialStorage, env = {}) {
+  let storage = initialStorage;
   const uuid = env.uuid || defaultId;
   const now = env.now || (() => new Date());
   const listeners = new Set();
@@ -73,36 +49,24 @@ export function createStore(storage, env = {}) {
     for (const fn of [...errorListeners]) { try { fn(error); } catch (e) { /* a broken listener must not break the store */ } }
   }
 
-  function read(key) {
-    let raw;
-    try { raw = storage.getItem(key); } catch (e) { report(problem('read', key, e)); return null; }
-    if (raw === null || raw === undefined) return null;
-    if (typeof raw !== 'string') return null;
-    if (raw.length > MAX_STORED_CHARS) { report(problem('too-large', key)); return null; }
-    try { return JSON.parse(raw); } catch (e) { report(problem('corrupt', key, e)); return null; }
-  }
-
   function load() {
     loadProblems = [];
-    return {
-      profile: cleanProfile(read(STORAGE_KEYS.profile)),
-      goals: cleanGoalsHistory(read(STORAGE_KEYS.goals)),
-      days: cleanDays(read(STORAGE_KEYS.days)),
-      saved: cleanSaved(read(STORAGE_KEYS.saved)),
-      weights: cleanWeights(read(STORAGE_KEYS.weights)),
-      sync: cleanSyncMeta(read(STORAGE_KEYS.sync)),
-      products: cleanProducts(read(STORAGE_KEYS.products)),
-      ui: cleanUi(read(STORAGE_KEYS.ui)),
-    };
+    return loadState((key) => storage.getItem(key), (error) => report(error));
   }
 
   function write(name) {
+    const key = STORAGE_KEYS[name];
     try {
+      if (typeof storage.setLazy === 'function') {
+        // the storage turns it into text only when it writes to disk (a burst of slider moves costs nothing), and checks the size then
+        storage.setLazy(key, () => JSON.stringify(state[name]));
+        return;
+      }
       const json = JSON.stringify(state[name]);
       // never write what load() would refuse to read back
       if (json.length > MAX_STORED_CHARS) throw new Error('value too large to store');
-      storage.setItem(STORAGE_KEYS[name], json);
-    } catch (e) { report(problem('write', STORAGE_KEYS[name], e)); }
+      storage.setItem(key, json);
+    } catch (e) { report(problem('write', key, e)); }
   }
 
   function notify() {
@@ -131,6 +95,12 @@ export function createStore(storage, env = {}) {
   /** Remember that a day changed since the last cloud sync (the cloud code reads and clears this). */
   const markDay = (iso, at) => { state.sync.dirty.days[iso] = { m: nullMap(), d: nullMap(), w: at, s: 0 }; };
 
+  /** Listens to what a storage tells later on by itself: a write that fails after the fact (quota), or another tab changing the data. */
+  function bind(target) {
+    if (typeof target.onError === 'function') target.onError((e) => report(problem('write', (e && e.key) || 'indexeddb', e)));
+    if (typeof target.onExternalChange === 'function') target.onExternalChange(() => { state = load(); notify(); });
+  }
+  bind(storage);
   state = load();
 
   return {
@@ -194,6 +164,7 @@ export function createStore(storage, env = {}) {
       if (!clean) return null;
       const day = dayOf(iso);
       if (!(clean.id in day.meals) && Object.keys(day.meals).length >= MAX_MEALS_PER_DAY) return null;
+      if (clean.thumb && countThumbs(day.meals, clean.id) >= MAX_THUMBS_PER_DAY) delete clean.thumb;   // past the cap the meal is kept, without its thumbnail
       day.meals[clean.id] = clean;
       if (day.deleted && clean.id in day.deleted) {                                // an undo: the meal is alive again
         delete day.deleted[clean.id];
@@ -211,6 +182,7 @@ export function createStore(storage, env = {}) {
       if (!day || !isId(id) || !(id in day.meals)) return null;
       const clean = cleanMeal(meal, { updatedAt: stamp() });
       if (!clean) return null;
+      if (clean.thumb && countThumbs(day.meals, clean.id) >= MAX_THUMBS_PER_DAY) delete clean.thumb;
       day.meals[clean.id] = clean;
       markDay(iso, clean.updatedAt);
       if (silent) { write('days'); write('sync'); } else commit('days', 'sync');
@@ -237,6 +209,7 @@ export function createStore(storage, env = {}) {
       if (!copy) return null;
       const day = dayOf(toIso);
       if (Object.keys(day.meals).length >= MAX_MEALS_PER_DAY) return null;
+      if (copy.thumb && countThumbs(day.meals) >= MAX_THUMBS_PER_DAY) delete copy.thumb;
       day.meals[copy.id] = copy;
       if (!putDay(toIso, day)) return null;
       markDay(toIso, copy.updatedAt);
@@ -290,6 +263,7 @@ export function createStore(storage, env = {}) {
       const twin = state.saved.find((s) => key(s) === key(clean));
       if (twin) return { meal: twin, added: false };
       if (state.saved.length >= MAX_SAVED) return { meal: null, added: false, full: true };
+      if (clean.thumb && countThumbs(state.saved) >= MAX_THUMBS_SAVED) delete clean.thumb;
       state.saved = [clean, ...state.saved];
       delete state.sync.savedDeleted[clean.id];                // an undo: the favourite is alive again
       commit('saved', 'sync');
@@ -344,7 +318,7 @@ export function createStore(storage, env = {}) {
       return clean;
     },
     clearAll() {
-      for (const k of KEY_NAMES) {
+      for (const k of DATA_KEYS) {
         try { storage.removeItem(k); } catch (e) { report(problem('write', k, e)); } // still stored: the data may come back on reload
       }
       state = { profile: null, goals: [], days: nullMap(), saved: [], weights: nullMap(), sync: emptySyncMeta(), products: nullMap(), ui: cleanUi(null) };
@@ -385,6 +359,17 @@ export function createStore(storage, env = {}) {
     },
     /** Read everything from storage again (another tab changed it). */
     reload() { state = load(); notify(); },
+    /**
+     * Start using a (usually IndexedDB-backed) storage: everything is read from it, problems found while opening it are reported, and
+     * writes that fail later, or changes made by another tab, come back through the storage's callbacks.
+     */
+    attach(next, { problems = [] } = {}) {
+      storage = next;
+      bind(next);
+      state = load();
+      for (const p of problems) report(p);
+      notify();
+    },
     /** Group several changes into one notification. */
     batch(fn) {
       batching += 1;
@@ -414,4 +399,16 @@ function clampWaterDelta(ml) {
   return typeof ml === 'number' && Number.isFinite(ml) ? Math.max(-20000, Math.min(20000, ml)) : 0;
 }
 
-export const store = createStore(browserStorage());
+/** An empty storage that keeps things in memory: what the store uses until the real one is open (and in Node). */
+function memoryStorage() {
+  const mem = new Map();
+  return { getItem: (k) => (mem.has(k) ? mem.get(k) : null), setItem: (k, v) => { mem.set(k, String(v)); }, removeItem: (k) => { mem.delete(k); } };
+}
+
+export const store = createStore(memoryStorage());
+/**
+ * Resolves when the data on disk has been read into the store (usually a few milliseconds), with how it is persisted:
+ * 'indexeddb', 'localstorage' (IndexedDB is not available but localStorage works) or 'memory' (nothing can be saved: the store says so).
+ * main.js waits for it before the first screen is drawn; it never takes longer than a couple of seconds.
+ */
+store.ready = openPersistentStorage().then((r) => { store.attach(r.storage, r); store.mode = r.mode; store.timing = r.timing; return r.mode; });

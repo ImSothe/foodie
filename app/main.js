@@ -13,7 +13,7 @@ import { openProduct } from './ui/screens/product.js';
 import { openPhoto } from './ui/screens/photo.js';
 import { isoDate, streak } from './core/dates.js';
 import { resolveRoute } from './core/router.js';
-import { store, isStoreKey } from './data/store.js';
+import { store } from './data/store.js';
 import { createCloud } from './data/cloud.js';
 import { createOffClient } from './data/off-client.js';
 import { createVision } from './data/vision.js';
@@ -142,12 +142,14 @@ function registerServiceWorker() {
 }
 
 buildChrome();
-store.subscribe(() => render(false));
+// Registered before the data is opened: a storage that cannot keep the data (or an unreadable value) is reported as soon as it is known.
 store.onStorageError((error) => toast(error.kind === 'write'
   ? 'Este navegador no deja guardar datos. Lo que añadas se perderá al cerrar la página.'
   : 'Había datos guardados que no se pudieron leer y se han ignorado. Si faltan comidas, exporta tus datos desde Ajustes antes de seguir.'));
-// Another tab changed the data: read it again.
-window.addEventListener('storage', (e) => { if (isStoreKey(e.key)) store.reload(); });
+// The data is read from IndexedDB into memory first (a few milliseconds; it gives up after 2.5 s and the app opens anyway, saying it cannot save).
+// Another tab changing the data is heard by the storage itself (BroadcastChannel) and arrives as a normal store change.
+await store.ready;
+store.subscribe(() => render(false));
 window.addEventListener('hashchange', () => render(true));
 cloud.onChange(() => { if (currentPath() === '/ajustes') render(false); });
 render(true);
