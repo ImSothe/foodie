@@ -5,7 +5,10 @@
    ponyfill that is loaded only when needed (app/vendor/lazy/, served from this origin). */
 import { normalizeCode } from '../core/off.js';
 
-export const FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'qr_code'];
+// Retail codes first, then the other common linear symbologies (ITF-14 on cases, Code 128/39/93, Codabar, GS1 DataBar) and 2D codes.
+// Only a numeric GTIN with a valid check digit (or a GS1 link holding one) becomes a product; anything else is reported as "not a product".
+export const FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'itf', 'code_128', 'code_39', 'code_93', 'codabar',
+  'databar', 'databar_expanded', 'databar_limited', 'qr_code', 'data_matrix', 'pdf417', 'aztec', 'micro_qr_code'];
 export const SCAN_INTERVAL_MS = 125;             // about 8 frames a second: plenty for a barcode, kind to the battery
 const MAX_CONSECUTIVE_ERRORS = 20;
 const IGNORED_NOTICE_GAP_MS = 3000;
