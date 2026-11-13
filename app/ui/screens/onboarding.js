@@ -38,6 +38,9 @@ export function onboardingScreen({ store, today, existing = null, onDone, onCanc
   const d = p0
     ? { sex: p0.sex, age: ageOf(p0), heightCm: p0.heightCm, weightKg: p0.weightKg, activity: p0.activity, goal: p0.goal, pace: p0.pace }
     : { pace: null };
+  // Steps are optional (Ajustes > Seguir mis pasos): a new profile starts without them, an existing one keeps its choice, made explicit here.
+  const tracking = edit ? store.stepsTracked() : false;
+  d.trackSteps = tracking;
   let i = 0;
   let targets = null;          // { kcal, protein_g, ... } being edited on the last screen; null = recalculate from the answers
   const root = h('div', { class: 'onb' });
@@ -126,7 +129,7 @@ export function onboardingScreen({ store, today, existing = null, onDone, onCanc
     const plan = computePlan(profile);
     const calculated = toGoals(plan);
     if (!targets) {
-      const same = edit && JSON.stringify(profile) === JSON.stringify(existing.profile);
+      const same = edit && JSON.stringify(profile) === JSON.stringify({ ...existing.profile, trackSteps: tracking });
       targets = { ...(same && existing.goals ? existing.goals : calculated) };
     }
     const fields = {};
@@ -189,7 +192,7 @@ export function onboardingScreen({ store, today, existing = null, onDone, onCanc
           fields.kcal.el,
           h('div', { class: 'plan-grid' }, fields.protein_g.el, fields.carbs_g.el, fields.fat_g.el),
           macroNote,
-          h('div', { class: 'plan-grid' }, fields.waterL.el, fields.steps.el),
+          h('div', { class: 'plan-grid' }, fields.waterL.el, tracking ? fields.steps.el : null),       // OFF: the steps goal is still calculated, just not asked
           h('button', { type: 'button', class: 'btn btn-quiet', onClick: reset }, 'Volver al cálculo automático')),
         h('p', { class: 'note small' },
           'Estas cifras son una estimación con una fórmula estándar (Mifflin-St Jeor), no un consejo médico. Si tienes alguna condición médica o un embarazo, consúltalo con un profesional sanitario.'),

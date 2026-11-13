@@ -78,10 +78,10 @@ Built in steps. This list only contains what exists.
 
 What works today, all on your device:
 
-- **Onboarding:** sex, age, height, weight, activity and goal (lose, maintain, gain) give an editable daily plan: calories, protein, carbohydrate, fat, water and steps.
+- **Onboarding:** sex, age, height, weight, activity and goal (lose, maintain, gain) give an editable daily plan: calories, protein, carbohydrate, fat and water (and steps, if you turn them on).
 - **Repeat, don't retype:** the search opens with "Repetir lo de ayer" and your recent meals, one tap each, and `+` opens in the camera mode you used last.
 - **Log a meal by search** from about 100 common foods, with typical portions and a grams slider, several foods per meal. Fix the grams later, duplicate the meal on another day, save it as a favourite, delete with undo.
-- **Home:** calories left, macros, water, steps, and vitamins and minerals against reference values for your sex. A week strip you can move back through.
+- **Home:** calories left, macros, water, steps (only if you follow them), and vitamins and minerals against reference values for your sex. A week strip you can move back through.
 - **Progress:** a month calendar of the days you met your goal, average calories per week, weight history.
 - **Settings:** edit profile and goals (past days keep the goals they had), light and dark theme, export everything as JSON, delete it from the device.
 
@@ -91,7 +91,7 @@ What works today, all on your device:
 
 - **Photo analysis (needs sign-in):** take a photo of the plate, an AI model (Gemini, through Firebase AI Logic) names the ingredients and estimates their grams, and you get one slider per ingredient plus the dish name to edit. Things it implies but cannot see, like cooking oil, are marked "(estimado)"; the confidence is a word, not a number. If the photo does not show what is inside (a wrapped burrito, a sealed package) or the model is unsure, it asks "¿Qué es o qué lleva?" before showing numbers. The photo is shrunk on your device, sent to Google for the analysis and not kept by foodie; only a 160 px thumbnail is saved with the meal. The Etiqueta mode uses the same path with an instruction to read a nutrition table; that reading has not been checked against real labels.
 
-Not there yet: reading labels reliably (not checked against real labels), and anything beyond a rough estimate: the model's answer is an estimate and the app says how sure it is. Steps are typed by hand.
+Not there yet: reading labels reliably (not checked against real labels), and anything beyond a rough estimate: the model's answer is an estimate and the app says how sure it is. **Steps are optional and typed by hand** (Ajustes > Seguir mis pasos, off for new profiles). A web app, installed or not, has no access to Apple Health or Health Connect, so foodie cannot read your steps from the phone; only a native app can. Rather than pretend otherwise, the steps card is hidden until you ask for it.
 
 ## Privacy
 

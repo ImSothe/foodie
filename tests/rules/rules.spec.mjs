@@ -6,7 +6,7 @@ import {
   doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, collection, collectionGroup, query, where, deleteField, writeBatch,
 } from 'firebase/firestore';
 import { assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
-import { createEnv, seed, VALID, pathsOf, ALICE, BOB, DAY, meal, many } from './helpers.mjs';
+import { createEnv, seed, VALID, pathsOf, ALICE, BOB, DAY, meal, many, profile } from './helpers.mjs';
 
 let env; let aliceDb; let bobDb; let anonDb;
 before(async () => {
@@ -157,6 +157,8 @@ const okDay = (extra) => ({ ...VALID.day(), ...extra });
 const cases = {
   user: [
     ['a profile that is a map', { profile: { sex: 'x' } }, true],
+    ['a profile with the optional steps choice (trackSteps)', { profile: { ...profile, trackSteps: true } }, true],
+    ['an old profile without trackSteps', { profile }, true],
     ['a profile that is not a map', { profile: 'text' }, false],
     ['a profile that is a list', { profile: [1] }, false],
     ['goals: a list of 1,000', { goals: Array.from({ length: 1000 }, () => ({ from: '2026-01-01' })) }, true],

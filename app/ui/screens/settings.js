@@ -22,18 +22,31 @@ function download(filename, text) {
 
 function profileCard(store, today) {
   const p = store.getProfile();
+  const tracking = store.stepsTracked();
   const g = store.goalsFor(today);
   const rows = p ? [
     ['Datos', `${SEX_LABEL[p.sex]}, ${ageOf(p)} años, ${nf1.format(p.heightCm)} cm, ${nf1.format(p.weightKg)} kg`],
     ['Actividad', ACTIVITY_INFO[p.activity][0]],
     ['Objetivo', GOAL_LABEL[p.goal] + (p.goal !== 'maintain' ? `, ritmo ${PACE_WORD[p.goal][p.pace || DEFAULT_PACE[p.goal]] || 'moderado'}` : '')],
-    ['Cada día', `${fmtNum(g.kcal)} kcal, ${fmtNum(g.protein_g)} g de proteína, ${fmtNum(g.carbs_g)} g de carbohidratos, ${fmtNum(g.fat_g)} g de grasa, ${nf1.format(g.waterL)} litros de agua y ${fmtNum(g.steps)} pasos`],
+    ['Cada día', `${fmtNum(g.kcal)} kcal, ${fmtNum(g.protein_g)} g de proteína, ${fmtNum(g.carbs_g)} g de carbohidratos, ${fmtNum(g.fat_g)} g de grasa, ${nf1.format(g.waterL)} litros de agua${tracking ? ` y ${fmtNum(g.steps)} pasos` : ''}`],
   ] : [];
   return h('section', { class: 'card' },
     h('h2', { class: 'section-title' }, 'Perfil y objetivos'),
     h('dl', { class: 'facts' }, rows.map(([k, v]) => h('div', null, h('dt', { class: 'small muted' }, k), h('dd', null, v)))),
     h('p', { class: 'small muted' }, 'Si cambias tus objetivos, los días anteriores conservan los que tenían.'),
+    p ? stepsSwitch(store, tracking) : null,
     h('a', { class: 'btn btn-secondary link-btn', href: '#/perfil' }, icon('edit', 20), 'Editar perfil y objetivos'));
+}
+
+/** "Seguir mis pasos": steps are optional and typed by hand. */
+function stepsSwitch(store, tracking) {
+  return h('fieldset', { class: 'seg-field' },
+    h('legend', { class: 'section-title' }, 'Seguir mis pasos'),
+    h('div', { class: 'seg' }, [[true, 'Sí'], [false, 'No']].map(([value, label]) => h('label', null,
+      h('input', { type: 'radio', name: 'track-steps', value: String(value), checked: value === tracking, class: 'sr-only',
+        onChange: () => { store.setTrackSteps(value); } }),
+      h('span', null, label)))),
+    h('p', { class: 'small muted' }, 'Una web no puede leer la app Salud de Apple ni Health Connect de Android, así que los pasos se escriben a mano.'));
 }
 
 function dataCard(store, today) {

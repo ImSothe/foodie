@@ -71,7 +71,10 @@ function cleanProfileUnsafe(raw, year) {
   if (!inRange(heightCm, LIMITS.heightCm) || !inRange(weightKg, LIMITS.weightKg)) return null;
   let pace = null;
   if (raw.goal !== 'maintain') pace = PACES[raw.goal].includes(toNum(raw.pace)) ? toNum(raw.pace) : DEFAULT_PACE[raw.goal];
-  return { sex: raw.sex, birthYear, heightCm: round1(heightCm), weightKg: round1(weightKg), activity: raw.activity, goal: raw.goal, pace };
+  const profile = { sex: raw.sex, birthYear, heightCm: round1(heightCm), weightKg: round1(weightKg), activity: raw.activity, goal: raw.goal, pace };
+  // optional: whether the person follows their steps (typed by hand). Absent in older data; the store infers it then (store.stepsTracked).
+  if (typeof raw.trackSteps === 'boolean') profile.trackSteps = raw.trackSteps;
+  return profile;
 }
 
 /** Basal metabolic rate, Mifflin-St Jeor: 10·kg + 6.25·cm − 5·age + 5 (men) or − 161 (women). */

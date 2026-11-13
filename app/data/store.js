@@ -8,7 +8,7 @@
 import { isIso } from '../core/dates.js';
 import { photosLeft as photosLeftOn, recordPhoto as recordPhotoOn } from '../core/limits.js';
 import { cleanProducts, cleanProduct } from '../core/off.js';
-import { cleanProfile, computePlan, toGoals } from '../core/goals.js';
+import { cleanProfile, computePlan, toGoals, stepsTarget } from '../core/goals.js';
 import {
   cleanMeal, cleanDays, cleanGoalsHistory, cleanSaved, cleanWeights, cleanGoals, goalsFor as goalsInForce, setGoalsEntry,
   emptyDay, isEmptyDay, loggedDays as loggedDaysOf, mealsOfDay, clampWater, clampSteps, isId, nullMap, cleanSyncMeta, emptySyncMeta,
@@ -131,6 +131,29 @@ export function createStore(initialStorage, env = {}) {
     get persistent() { return persistent; },
 
     // ---- profile and goals ----
+    /**
+     * Does this person follow their steps? Steps are optional and typed by hand (a web app cannot read Apple Health or Health Connect).
+     * An explicit choice (profile.trackSteps) wins. Data from before the choice existed counts as ON when any day has steps or the steps goal
+     * was changed from the calculated one (the person used it), otherwise OFF. Without a profile: OFF.
+     */
+    stepsTracked() {
+      const p = state.profile;
+      if (!p) return false;
+      if (typeof p.trackSteps === 'boolean') return p.trackSteps;
+      if (Object.values(state.days).some((d) => d.steps > 0)) return true;
+      const last = state.goals[state.goals.length - 1];
+      return !!last && last.goals.steps !== stepsTarget(p.goal, p.activity);
+    },
+    /** The explicit choice, synced with the profile. Null without a profile. */
+    setTrackSteps(on) {
+      if (!state.profile) return null;
+      const profile = cleanProfile({ ...state.profile, trackSteps: !!on });
+      if (!profile) return null;
+      state.profile = profile;
+      state.sync.profileAt = stamp();
+      commit('profile', 'sync');
+      return profile.trackSteps;
+    },
     saveProfile(raw) {
       const profile = cleanProfile(raw);
       if (!profile) return null;

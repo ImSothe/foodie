@@ -105,7 +105,7 @@ function stepsSheet({ store, selected, day, goals }) {
       sheet.close();
     } },
     field.el,
-    h('p', { class: 'small muted' }, 'Por ahora los pasos se escriben a mano. Puedes mirarlos en la app de salud de tu móvil.'),
+    h('p', { class: 'small muted' }, 'Los pasos se escriben a mano: una web no puede leer la app de salud de tu móvil. Puedes mirarlos allí y apuntarlos aquí.'),
     h('button', { type: 'submit', class: 'btn btn-primary' }, 'Guardar')),
   });
   field.input.focus();
@@ -119,7 +119,7 @@ function stepsCard({ store, selected, day, goals, fresh }) {
       h('span', { class: 'tracker-text' },
         h('span', { class: 'tracker-title' }, 'Pasos'),
         h('span', { class: 'num tracker-num' }, fmtNum(day.steps), h('span', { class: 'unit' }, ` de ${fmtNum(goals.steps)}`)))),
-    h('span', { class: 'small muted' }, 'Toca para anotarlos. Por ahora los pasos se escriben a mano.'));
+    h('span', { class: 'small muted' }, 'Toca para anotarlos. Los pasos se escriben a mano.'));
 }
 
 // ---------- vitamins and minerals ----------
@@ -239,7 +239,7 @@ export function homeScreen({ store, selected, today, fresh, onSelect, onChange, 
     calorieCard(totals, goals, fresh),
     h('div', { class: 'macros' }, MACROS.map((m) => macroCard(m, totals, goals, fresh))),
     waterCard({ store, selected, day, goals, fresh }),
-    stepsCard({ store, selected, day, goals, fresh }),
+    store.stepsTracked() ? stepsCard({ store, selected, day, goals, fresh }) : null,
     microPanel(totals, meals, targets),
     h('section', { class: 'meals', 'aria-label': 'Comidas del día' },
       h('h2', { class: 'section-title' }, isToday ? 'Comidas de hoy' : 'Comidas'),
