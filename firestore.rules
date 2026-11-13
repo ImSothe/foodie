@@ -65,6 +65,14 @@ service cloud.firestore {
         && optStamp(d, 'updatedAt');
     }
 
+    // the daily photo counter (core/limits.js): a local day and a whole number of photos
+    function validUsage(d) {
+      return d.keys().hasOnly(['day', 'photos', 'updatedAt'])
+        && 'day' in d && d.day is string && d.day.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && 'photos' in d && d.photos is int && d.photos >= 0 && d.photos <= 1000
+        && optStamp(d, 'updatedAt');
+    }
+
     match /users/{uid} {
       allow get: if isOwner(uid);
       allow create, update: if isOwner(uid) && validUser(request.resource.data);
@@ -81,6 +89,12 @@ service cloud.firestore {
       match /meta/saved {
         allow get: if isOwner(uid);
         allow create, update: if isOwner(uid) && validSaved(request.resource.data);
+        allow delete: if isOwner(uid);
+      }
+
+      match /meta/usage {
+        allow get: if isOwner(uid);
+        allow create, update: if isOwner(uid) && validUsage(request.resource.data);
         allow delete: if isOwner(uid);
       }
 

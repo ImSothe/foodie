@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createVision, classifyAiError, VISION_MODEL, TIMEOUT_MS } from '../app/data/vision.js';
 import { VISION_JSON_SCHEMA } from '../app/core/vision.js';
+import { memoryUsage } from './helpers/usage.js';
 
 const fixture = (name) => JSON.parse(readFileSync(fileURLToPath(new URL(`./fixtures/vision/${name}.json`, import.meta.url)), 'utf8'));
 const jpeg = { type: 'image/jpeg', size: 1000 };
@@ -39,7 +40,7 @@ function setup(answers, over = {}) {
   const vision = createVision({
     cloud: over.cloud || fb.cloudPart, appCheckSiteKey: 'site-key', now: () => t, compress: async (b) => ({ blob: jpeg, width: 100, height: 100 }),
     toBase64: async () => 'QUJD', delay: async () => { t += 1500; }, win: { location: { hostname: 'imsothe.github.io' }, navigator: { onLine: true } },
-    ...over.deps,
+    usage: memoryUsage(), ...over.deps,
   });
   return { ...fb, vision, advance: (ms) => { t += ms; } };
 }
@@ -110,7 +111,7 @@ test('analyze: one analysis at a time, and a 3 s cooldown after each', async () 
   const fb = slow.cloudPart;
   const gate = new Promise((r) => { release = r; });
   const vision = createVision({
-    cloud: { user: fb.user, firebase: async () => { await gate; return fb.firebase(); } }, appCheckSiteKey: 'k', now: () => 5_000_000, compress: async () => ({ blob: jpeg }), toBase64: async () => 'QQ',
+    cloud: { user: fb.user, firebase: async () => { await gate; return fb.firebase(); } }, appCheckSiteKey: 'k', now: () => 5_000_000, compress: async () => ({ blob: jpeg }), toBase64: async () => 'QQ', usage: memoryUsage(),
   });
   const first = vision.analyze({});
   assert.deepEqual(await vision.analyze({}), { ok: false, reason: 'busy-local' });
@@ -164,7 +165,7 @@ test('analyze: a call that never answers is cut at the timeout', async () => {
   const fb = fakeFirebase([GOOD]);
   const sdkFb = await fb.cloudPart.firebase();
   sdkFb.sdk.getGenerativeModel = () => ({ generateContent: () => new Promise(() => {}) });
-  const vision = createVision({ cloud: { user: { uid: 'u' }, firebase: async () => sdkFb }, appCheckSiteKey: 'k', timeoutMs: 30, compress: async () => ({ blob: jpeg }), toBase64: async () => 'QQ', now: () => 9e9 });
+  const vision = createVision({ cloud: { user: { uid: 'u' }, firebase: async () => sdkFb }, appCheckSiteKey: 'k', timeoutMs: 30, compress: async () => ({ blob: jpeg }), toBase64: async () => 'QQ', now: () => 9e9, usage: memoryUsage() });
   const started = Date.now();
   assert.deepEqual(await vision.analyze({}), { ok: false, reason: 'timeout' });
   assert.ok(Date.now() - started < 2000);

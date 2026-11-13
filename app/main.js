@@ -23,7 +23,7 @@ export const APP_VERSION = '0.2.0';
 const today = isoDate();
 const cloud = createCloud({ store });
 const offClient = createOffClient({ store });
-const vision = createVision({ cloud });
+const vision = createVision({ cloud, usage: store });
 const state = { selected: today };
 const view = $('#view');
 
@@ -75,6 +75,7 @@ function openCapture(mode = store.getCameraMode()) {
   openCameraView({
     mode,
     onMode: (m) => store.setCameraMode(m),
+    photosLeft: () => (cloud.user ? store.photosLeft() : null),
     onSearch: openSearch,
     onCode: (code) => openProduct({ store, day: addDay(), code, offClient, onSearch: () => openSearch(), onPhoto: () => openCapture('photo') }),
     onPhoto: (picture, { label }) => openPhoto({ store, day: addDay(), cloud, vision, picture, label, onSearch: () => openSearch(), onRetake: (m) => openCapture(m) }),

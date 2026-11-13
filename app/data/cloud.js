@@ -7,7 +7,7 @@
    devices at once, converges to the same data. */
 import { FIREBASE_CONFIG } from './firebase-config.js';
 import { mergeState } from '../core/merge.js';
-import { stateFromCloud, dayPatchDiff, userPatch, userDocsDiffer, savedPatchDiff, weightsPatchDiff, DELETE } from '../core/cloudmap.js';
+import { stateFromCloud, dayPatchDiff, userPatch, userDocsDiffer, savedPatchDiff, weightsPatchDiff, usagePatch, DELETE } from '../core/cloudmap.js';
 
 const PULL_MARGIN_MS = 10 * 60 * 1000;     // devices' clocks differ a little: re-read the last few minutes
 const PUSH_DELAY_MS = 3000;                // wait for a burst of edits to settle
@@ -82,16 +82,18 @@ export function createCloud({ store, loadSdk = () => import('../vendor/firebase.
       const userRef = doc(db, 'users', uid);
       const savedRef = doc(db, 'users', uid, 'meta', 'saved');
       const weightsRef = doc(db, 'users', uid, 'meta', 'weights');
+      const usageRef = doc(db, 'users', uid, 'meta', 'usage');
       const daysRef = collection(db, 'users', uid, 'days');
 
-      const [userSnap, savedSnap, weightsSnap, daysSnap] = await Promise.all([
-        getDoc(userRef), getDoc(savedRef), getDoc(weightsRef),
+      const [userSnap, savedSnap, weightsSnap, usageSnap, daysSnap] = await Promise.all([
+        getDoc(userRef), getDoc(savedRef), getDoc(weightsRef), getDoc(usageRef),
         getDocs(full ? daysRef : query(daysRef, where('updatedAt', '>', Math.max(0, info.lastPull - PULL_MARGIN_MS)))),
       ]);
       const cloud = stateFromCloud({
         user: userSnap.exists() ? userSnap.data() : null,
         saved: savedSnap.exists() ? savedSnap.data() : null,
         weights: weightsSnap.exists() ? weightsSnap.data() : null,
+        usage: usageSnap.exists() ? usageSnap.data() : null,
         days: Object.fromEntries(daysSnap.docs.map((d) => [d.id, d.data()])),
       });
 
@@ -105,6 +107,7 @@ export function createCloud({ store, loadSdk = () => import('../vendor/firebase.
       if (userDocsDiffer(cloud, merged) && (merged.profile || merged.goals.length)) writes.push([userRef, userPatch(merged, t)]);
       const sp = savedPatchDiff(cloud, merged, t); if (sp) writes.push([savedRef, sp]);
       const wp = weightsPatchDiff(cloud, merged, t); if (wp) writes.push([weightsRef, wp]);
+      const up = usagePatch(cloud, merged, t); if (up) writes.push([usageRef, up]);
       for (const iso of full ? Object.keys(merged.days) : Object.keys(sent)) {
         const day = merged.days[iso];
         const patch = day ? dayPatchDiff(cloud.days[iso], day, t) : null;

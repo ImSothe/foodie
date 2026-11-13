@@ -9,11 +9,13 @@
 
    State shape (all of it already cleaned by core/schema.js):
    { profile, profileAt, goals: [{from, goals}], goalsAt: {from: stamp}, days: {iso: Day},
-     saved: [Meal], savedDeleted: {id: stamp}, weights: {iso: kg}, weightsAt: {iso: stamp} } */
+     saved: [Meal], savedDeleted: {id: stamp}, weights: {iso: kg}, weightsAt: {iso: stamp},
+     usage: {day, photos} (the daily photo counter: later day wins, same day the higher count; see core/limits.js) } */
 import {
   cleanDay, cleanSaved, cleanWeights, cleanGoalsHistory, cleanTombstones, cleanStamp, isEmptyDay, isId, nullMap, MAX_SAVED,
 } from './schema.js';
 import { cleanProfile } from './goals.js';
+import { emptyUsage, mergeUsage } from './limits.js';
 
 /** A device whose clock runs ahead cannot win for ever: a stamp further in the future than this is rewritten to "now" before merging
     (see capState), and what is left is compared as at most "now plus this". */
@@ -26,7 +28,7 @@ const json = (v) => JSON.stringify(v);
 const pickByJson = (a, b) => (json(a) >= json(b) ? a : b);
 
 export const emptyState = () => ({
-  profile: null, profileAt: 0, goals: [], goalsAt: nullMap(), days: nullMap(), saved: [], savedDeleted: nullMap(), weights: nullMap(), weightsAt: nullMap(),
+  profile: null, profileAt: 0, goals: [], goalsAt: nullMap(), days: nullMap(), saved: [], savedDeleted: nullMap(), weights: nullMap(), weightsAt: nullMap(), usage: emptyUsage(),
 });
 
 /** The newer of two versions of the same record; equal stamps are settled by content, the same way on every device. */
@@ -169,5 +171,5 @@ export function mergeState(local, cloud, now = Date.now()) {
   const { goals, goalsAt } = mergeGoals(a.goals, a.goalsAt, b.goals, b.goalsAt, now);
   const { saved, savedDeleted } = mergeSaved(a.saved, a.savedDeleted, b.saved, b.savedDeleted, now);
   const { weights, weightsAt } = mergeWeights(a.weights, a.weightsAt, b.weights, b.weightsAt, now);
-  return { profile, profileAt, goals, goalsAt, days: mergeDays(a.days, b.days, now), saved, savedDeleted, weights, weightsAt };
+  return { profile, profileAt, goals, goalsAt, days: mergeDays(a.days, b.days, now), saved, savedDeleted, weights, weightsAt, usage: mergeUsage(a.usage, b.usage) };
 }

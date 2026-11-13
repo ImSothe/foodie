@@ -38,9 +38,9 @@ test('rules: isOwner compares the signed-in uid with the path uid', () => {
 
 test('rules: every create and update validates the document', () => {
   const writes = guarded.filter((s) => s.ops.some((o) => ['create', 'update', 'write'].includes(o)));
-  assert.equal(writes.length, 4, 'user, day, saved and weights documents');
-  const validators = writes.map((s) => (s.cond.match(/valid(User|Day|Saved|Weights)\(request\.resource\.data\)/) || [])[1]);
-  assert.deepEqual(validators.sort(), ['Day', 'Saved', 'User', 'Weights']);
+  assert.equal(writes.length, 5, 'user, day, saved, weights and usage documents');
+  const validators = writes.map((s) => (s.cond.match(/valid(User|Day|Saved|Weights|Usage)\(request\.resource\.data\)/) || [])[1]);
+  assert.deepEqual(validators.sort(), ['Day', 'Saved', 'Usage', 'User', 'Weights']);
 });
 
 test('rules: a day document id must be a date', () => {
@@ -54,12 +54,12 @@ test('rules: caps are present', () => {
 });
 
 test('rules: every document type lists its keys, so unknown fields are refused', () => {
-  assert.equal([...rules.matchAll(/d\.keys\(\)\.hasOnly\(/g)].length, 4);
+  assert.equal([...rules.matchAll(/d\.keys\(\)\.hasOnly\(/g)].length, 5);
 });
 
 test('rules: only the known paths', () => {
   const paths = [...rules.matchAll(/match\s+(\/[^\s{]*(?:\{[^}]+\}[^\s{]*)*)\s*\{/g)].map((m) => m[1]).sort();
-  assert.deepEqual(paths, ['/databases/{database}/documents', '/days/{iso}', '/meta/saved', '/meta/weights', '/users/{uid}', '/{document=**}'].sort());
+  assert.deepEqual(paths, ['/databases/{database}/documents', '/days/{iso}', '/meta/saved', '/meta/usage', '/meta/weights', '/users/{uid}', '/{document=**}'].sort());
 });
 
 test('rules: reads and deletes never look at request.resource (it is null there)', () => {

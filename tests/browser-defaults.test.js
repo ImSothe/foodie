@@ -71,7 +71,7 @@ test('vision: the default picture reader and thumbnail are wired to FileReader, 
     FileReader: FakeReader, document: fakeDocument(() => 500),
     createImageBitmap: async () => ({ width: 640, height: 480, close: () => closed.push(1) }),
   }, async () => {
-    const vision = createVision({ cloud: { user: { uid: 'u' }, firebase: async () => ({ sdk, app: {} }) }, appCheckSiteKey: 'k', compress: async () => ({ blob: { type: 'image/webp' } }), now: () => 1e12 });
+    const vision = createVision({ cloud: { user: { uid: 'u' }, firebase: async () => ({ sdk, app: {} }) }, appCheckSiteKey: 'k', compress: async () => ({ blob: { type: 'image/webp' } }), now: () => 1e12, usage: { photosLeft: () => 5, recordPhoto: () => 4 } });
     const r = await vision.analyze({});
     assert.equal(r.ok, true);
     assert.equal(sent[0][0].inlineData.data, 'QUJD', 'the picture is sent as base64 without the data URL prefix');
@@ -80,7 +80,7 @@ test('vision: the default picture reader and thumbnail are wired to FileReader, 
     assert.equal(closed.length, 1, 'the decoded bitmap is released');
   });
   await withGlobals({ createImageBitmap: async () => { throw new Error('cannot decode'); } }, async () => {
-    const vision = createVision({ cloud: { user: null }, appCheckSiteKey: 'k' });
+    const vision = createVision({ cloud: { user: null }, appCheckSiteKey: 'k', usage: { photosLeft: () => 5, recordPhoto: () => 4 } });
     assert.equal(await vision.thumbnail({}), null);
   });
 });

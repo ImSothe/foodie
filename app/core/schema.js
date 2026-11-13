@@ -16,6 +16,7 @@
    - a cleaner that hits something unexpected (a getter that throws, say) answers null or empty, it does not throw. */
 import { KEYS } from './nutrition.js';
 import { isIso } from './dates.js';
+import { cleanUsage, emptyUsage } from './limits.js';
 
 export const SLOTS = ['Desayuno', 'Almuerzo', 'Cena', 'Snack'];
 export const SOURCES = ['ai', 'barcode', 'label', 'db', 'manual'];
@@ -357,13 +358,14 @@ const stampsMap = (raw, keyOk, cap) => {
 };
 
 export const emptySyncMeta = () => ({
-  uid: null, lastPull: 0, profileAt: 0, goalsAt: nullMap(), weightsAt: nullMap(), savedDeleted: nullMap(),
+  usage: emptyUsage(), uid: null, lastPull: 0, profileAt: 0, goalsAt: nullMap(), weightsAt: nullMap(), savedDeleted: nullMap(),
   dirty: { days: nullMap(), saved: nullMap(), savedDeleted: nullMap(), weights: nullMap(), profile: 0, goals: 0 },
 });
 
 export const cleanSyncMeta = guard((raw) => {
   const out = emptySyncMeta();
   if (!isObj(raw)) return out;
+  out.usage = cleanUsage(raw.usage);
   out.uid = typeof raw.uid === 'string' && UID.test(raw.uid) ? raw.uid : null;
   out.lastPull = cleanStamp(raw.lastPull) || 0;
   out.profileAt = cleanStamp(raw.profileAt) || 0;

@@ -6,6 +6,7 @@
    Whatever is read back is validated by core/schema.js: stored data is never trusted blindly. A stored value
    larger than MAX_STORED_CHARS is not even parsed. */
 import { isIso } from '../core/dates.js';
+import { photosLeft as photosLeftOn, recordPhoto as recordPhotoOn } from '../core/limits.js';
 import { cleanProducts, cleanProduct } from '../core/off.js';
 import { cleanProfile, computePlan, toGoals } from '../core/goals.js';
 import {
@@ -328,8 +329,19 @@ export function createStore(initialStorage, env = {}) {
     /** Everything the merge needs, in the shape of core/merge.js (read-only for callers). */
     getSyncState: () => ({
       profile: state.profile, profileAt: state.sync.profileAt, goals: state.goals, goalsAt: state.sync.goalsAt, days: state.days,
-      saved: state.saved, savedDeleted: state.sync.savedDeleted, weights: state.weights, weightsAt: state.sync.weightsAt,
+      saved: state.saved, savedDeleted: state.sync.savedDeleted, weights: state.weights, weightsAt: state.sync.weightsAt, usage: state.sync.usage,
     }),
+    // ---- the daily limit of photo analyses (core/limits.js) ----
+    /** { day, photos }: the photos counted on `day` (this device and, after a sync, the other devices). */
+    getUsage: () => state.sync.usage,
+    /** How many photo analyses are left today (local day). */
+    photosLeft: () => photosLeftOn(state.sync.usage, localIso(now())),
+    /** Count one photo analysis on today's local day. */
+    recordPhoto() {
+      state.sync.usage = recordPhotoOn(state.sync.usage, localIso(now()));
+      commit('sync');
+      return photosLeftOn(state.sync.usage, localIso(now()));
+    },
     /** Days changed since the last successful sync, as { iso: stamp }. */
     dirtyDays: () => Object.fromEntries(Object.entries(state.sync.dirty.days).map(([iso, m]) => [iso, m.w])),
     /** After a push: forget the changes that were sent (`sent` = the { iso: stamp } map that was read before pushing). */
@@ -352,7 +364,7 @@ export function createStore(initialStorage, env = {}) {
       state.saved = cleanSaved(m.saved);
       state.weights = cleanWeights(m.weights);
       state.sync = cleanSyncMeta({
-        ...state.sync, profileAt: m.profileAt, goalsAt: m.goalsAt, weightsAt: m.weightsAt, savedDeleted: m.savedDeleted,
+        ...state.sync, usage: 'usage' in m ? m.usage : state.sync.usage, profileAt: m.profileAt, goalsAt: m.goalsAt, weightsAt: m.weightsAt, savedDeleted: m.savedDeleted,
       });
       for (const n of ['profile', 'goals', 'days', 'saved', 'weights', 'sync']) write(n);
       notify();

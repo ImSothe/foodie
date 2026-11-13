@@ -207,6 +207,22 @@ const cases = {
     ['updatedAt negative', { updatedAt: -1 }, false],
     ['an unknown field', { extra: 1 }, false],
   ],
+  usage: [
+    ['10 photos today', { photos: 10 }, true],
+    ['0 photos', { photos: 0 }, true],
+    ['1,000 photos (the cap)', { photos: 1000 }, true],
+    ['1,001 photos', { photos: 1001 }, false],
+    ['-1 photos', { photos: -1 }, false],
+    ['2.5 photos', { photos: 2.5 }, false],
+    ['photos as text', { photos: '3' }, false],
+    ['photos NaN', { photos: NaN }, false],
+    ['a day that looks like a date', { day: '2027-01-31' }, true],
+    ['a day that is not a date', { day: 'today' }, false],
+    ['a day with trailing text', { day: '2026-11-12 x' }, false],
+    ['a day that is a number', { day: 20261112 }, false],
+    ['updatedAt past year 3000', { updatedAt: 32503680000001 }, false],
+    ['an unknown field', { extra: 1 }, false],
+  ],
   weights: [
     ['4,000 weights', { w: many(4000, () => 80), at: many(4000, () => 5) }, true],
     ['4,001 weights', { w: many(4001, () => 80) }, false],
@@ -228,7 +244,13 @@ describe('validators', () => {
     }
   }
 
-  it('an empty document is valid (every field is optional), but not one with only unknown fields', async () => {
+  it('a usage document without its day or its photos is refused', async () => {
+    await assertFails(setDoc(doc(alice(), P.usage), { photos: 3 }));
+    await assertFails(setDoc(doc(alice(), P.usage), { day: DAY }));
+    await assertFails(setDoc(doc(alice(), P.usage), {}));
+  });
+
+  it('an empty day document is valid (every field is optional), but not one with only unknown fields', async () => {
     await assertSucceeds(setDoc(doc(alice(), P.day), {}));
     await assertFails(setDoc(doc(alice(), P.day), { nope: 1 }));
   });

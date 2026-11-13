@@ -8,6 +8,7 @@ import { scanFrame } from '../scan-frame.js';
 import { mealEditor } from '../meal-editor.js';
 import { slotSelector, hhmm } from '../meal-parts.js';
 import { googleSignInButton } from './cloud-card.js';
+import { leftText, limitMessage } from '../../core/limits.js';
 import { confidenceWord, needsContextScreen, visionMeal, MAX_CONTEXT } from '../../core/vision.js';
 
 /** [title, text, retryable] for every reason an analysis can fail. */
@@ -20,6 +21,7 @@ const PROBLEMS = {
   blocked: ['La IA no quiso analizar esta foto', 'Prueba con otra foto o busca el alimento a mano.', false],
   'bad-answer': ['No pudimos leer la respuesta de la IA', 'Prueba otra vez.', true],
   'bad-image': ['No pudimos leer esa imagen', 'Prueba con otra foto.', false],
+  'daily-limit': [...limitMessage(), false],
   empty: ['No hemos encontrado comida', 'Ni con ese contexto hemos podido estimarlo. Busca el alimento a mano o prueba con otra foto.', false],
   error: ['No se pudo analizar la foto', 'Prueba otra vez en un momento, o busca el alimento a mano.', true],
 };
@@ -47,6 +49,8 @@ export function openPhoto({ store, day, cloud, vision, picture, label = false, o
   const preview = URL.createObjectURL(picture);
   let closed = false;
   let stopWaiting = () => {};
+  let left = null;                      // photos left today, as the last analysis reported it
+  const leftLine = () => (left === null ? null : h('p', { class: 'small muted photo-left' }, leftText(left)));
   let thumbPromise = null;              // the 160 px thumbnail, made from the shrunk copy the AI saw (the photo itself is not kept)
   sheet.el.addEventListener('close', () => { closed = true; stopWaiting(); URL.revokeObjectURL(preview); });
 
@@ -77,11 +81,12 @@ export function openPhoto({ store, day, cloud, vision, picture, label = false, o
 
   function problem(reason, context) {
     const [title, text, retryable] = PROBLEMS[reason] || PROBLEMS.error;
+    const limited = reason === 'daily-limit';         // another photo would be refused too: offer the ways that need no AI
     mount(body, img(),
       h('div', { class: 'photo-card' }, h('h3', { class: 'section-title' }, title), h('p', { class: 'muted' }, text)),
       h('div', { class: 'sheet-actions' },
         retryable ? h('button', { type: 'button', class: 'btn btn-primary', onClick: () => analyze(context) }, 'Reintentar') : null,
-        searchBtn(!retryable), retakeBtn()));
+        searchBtn(!retryable), limited ? h('button', { type: 'button', class: 'btn btn-secondary', onClick: leave(() => onRetake('code')) }, icon('barcode', 20), 'Escanear un código') : retakeBtn()));
   }
 
   function analyzing(status = 'Analizando la foto') {
@@ -105,7 +110,8 @@ export function openPhoto({ store, day, cloud, vision, picture, label = false, o
       h('div', { class: 'photo-card' },
         h('h3', { class: 'section-title' }, title),
         h('p', { class: 'muted' }, text),
-        h('div', { class: 'field' }, h('label', { class: 'field-label', for: 'photo-context' }, '¿Qué es o qué lleva?'), input, error)),
+        h('div', { class: 'field' }, h('label', { class: 'field-label', for: 'photo-context' }, '¿Qué es o qué lleva?'), input, error),
+        h('p', { class: 'small muted' }, 'Añadir contexto no gasta otra foto.')),
       h('div', { class: 'sheet-actions' },
         h('button', { type: 'button', class: 'btn btn-primary', onClick: calc }, 'Calcular con este contexto'),
         result.isFood && result.items.length ? h('button', { type: 'button', class: 'btn btn-quiet', onClick: () => resultScreen(result) }, 'Usar la estimación tal cual') : searchBtn()));
@@ -132,6 +138,7 @@ export function openPhoto({ store, day, cloud, vision, picture, label = false, o
       h('p', { class: 'small muted' }, 'Estimado por IA a partir de la foto. Mueve los controles para corregir los gramos: las cifras se recalculan al momento.'),
       mealEditor(draft, () => {}),
       result.notes ? h('p', { class: 'small muted' }, result.notes) : null,
+      leftLine(),
       draft.items.some((it) => it.hidden) ? h('p', { class: 'small muted' }, 'Lo marcado como estimado (aceite, salsa) no se ve en la foto pero suele llevarlo.') : null,
       doubtful.length ? h('p', { class: 'small photo-warn' }, `Revisa ${doubtful.map((d) => d.name).join(', ')}: las calorías no cuadran del todo con los macros.`) : null,
       slot.el,
@@ -151,6 +158,7 @@ export function openPhoto({ store, day, cloud, vision, picture, label = false, o
       problem(r.reason, context);
       return;
     }
+    left = typeof r.left === 'number' ? r.left : null;
     thumbPromise = vision.thumbnail(r.photo);
     if (final && !r.result.items.length) { problem('empty', context); return; }
     if (!final && needsContextScreen(r.result)) contextScreen(r.result); else resultScreen(r.result);

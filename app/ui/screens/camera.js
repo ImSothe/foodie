@@ -9,6 +9,7 @@ import { openCamera, stopStream, attachStream } from '../../data/camera.js';
 import { createScanner, createDetector } from '../../data/scanner.js';
 import { frameToBlob } from '../../data/image.js';
 import { normalizeCode } from '../../core/off.js';
+import { leftText } from '../../core/limits.js';
 
 const MODES = [['photo', 'Foto', 'camera'], ['code', 'Código', 'barcode'], ['label', 'Etiqueta', 'label'], ['search', 'Buscar', 'search']];
 const HINT = {
@@ -30,10 +31,11 @@ const NO_CAMERA = {
  * @param {(code:string)=>void} o.onCode               a valid product code was read (or typed)
  * @param {(picture:Blob, info:{label:boolean})=>void} o.onPhoto  a picture was taken or chosen
  * @param {(mode:'photo'|'code'|'label')=>void} [o.onMode]  the person switched mode (so "+" can open in it next time)
+ * @param {()=>number|null} [o.photosLeft]    how many photo analyses are left today (null: do not say)
  * @param {(notice?:string)=>void} o.onSearch          the person chose "Buscar" (or there is no camera and they asked for it)
  * @param {{mediaDevices?:object, vibrate?:(ms:number)=>void, detector?:object}} [o.env]  injected in tests
  */
-export function openCameraView({ mode: startMode = 'photo', onCode, onPhoto, onSearch, onMode = () => {}, env = {} }) {
+export function openCameraView({ mode: startMode = 'photo', onCode, onPhoto, onSearch, onMode = () => {}, photosLeft = () => null, env = {} }) {
   const mediaDevices = env.mediaDevices !== undefined ? env.mediaDevices : navigator.mediaDevices;
   const vibrate = env.vibrate || ((ms) => { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) { /* not everywhere */ } });
   let mode = startMode === 'code' || startMode === 'label' ? startMode : 'photo';
@@ -47,10 +49,17 @@ export function openCameraView({ mode: startMode = 'photo', onCode, onPhoto, onS
 
   const video = h('video', { class: 'cam-video', autoplay: true, muted: true, playsinline: true, 'aria-hidden': 'true' });
   const hint = h('p', { class: 'cam-hint', 'aria-live': 'polite' });
+  // the daily limit of photo analyses is shown where the photo is taken (Foto and Etiqueta use the AI; Código and Buscar never do)
+  const hintFor = (m) => {
+    const base = HINT[m] || '';
+    const left = m === 'photo' || m === 'label' ? photosLeft() : null;
+    if (left === null || left === undefined) return base;
+    return left > 0 ? `${base} · ${leftText(left)}` : 'Hoy no quedan fotos: usa Código o Buscar';
+  };
   const say = (text, { temporary = false } = {}) => {
     clearTimeout(hintTimer);
     hint.textContent = text;
-    if (temporary) hintTimer = setTimeout(() => { if (!closed) hint.textContent = cameraOff ? '' : HINT[mode] || ''; }, 2500);
+    if (temporary) hintTimer = setTimeout(() => { if (!closed) hint.textContent = cameraOff ? '' : hintFor(mode); }, 2500);
   };
 
   // ---------- what can be on screen ----------
@@ -127,7 +136,7 @@ export function openCameraView({ mode: startMode = 'photo', onCode, onPhoto, onS
     stream = r.stream;
     dlg.dataset.camera = 'on';
     await attachStream(video, stream);
-    say(HINT[mode]);
+    say(hintFor(mode));
     if (mode === 'code') startScanning();
   }
 
@@ -159,7 +168,7 @@ export function openCameraView({ mode: startMode = 'photo', onCode, onPhoto, onS
     dlg.dataset.mode = next;
     for (const b of modeButtons) b.setAttribute('aria-pressed', String(b.dataset.mode === next));
     if (scanner) { scanner.stop(); scanner = null; }
-    say(cameraOff ? '' : HINT[next]);
+    say(cameraOff ? '' : hintFor(next));
     if (next === 'code') startScanning();
   }
 
@@ -174,7 +183,7 @@ export function openCameraView({ mode: startMode = 'photo', onCode, onPhoto, onS
 
   document.body.append(dlg);
   dlg.showModal();
-  say(HINT[mode]);
+  say(hintFor(mode));
   startCamera();
   return { close, el: dlg, get mode() { return mode; }, get streaming() { return !!stream; } };
 }

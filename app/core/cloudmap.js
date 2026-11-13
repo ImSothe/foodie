@@ -4,6 +4,7 @@
    users/{uid}/days/{iso}       { meals: {id: Meal}, deleted: {id: stamp}, waterMl, waterAt, steps, stepsAt, updatedAt }
    users/{uid}/meta/saved       { items: {id: Meal}, deleted: {id: stamp}, updatedAt }
    users/{uid}/meta/weights     { w: {iso: kg}, at: {iso: stamp}, updatedAt }
+   users/{uid}/meta/usage       { day, photos, updatedAt }   (the daily photo counter, core/limits.js)
 
    Writes are PATCHES: nested objects that are merged into the document field by field, so a write that touches meal "a" never
    touches meal "b" (two devices editing different meals never overwrite each other). The DELETE marker means "remove this field".
@@ -14,6 +15,7 @@ import {
 import { cleanProfile } from './goals.js';
 import { isIso } from './dates.js';
 import { emptyState } from './merge.js';
+import { cleanUsage, usageEqual } from './limits.js';
 
 export const DELETE = Symbol('delete-field');
 
@@ -50,6 +52,7 @@ export function stateFromCloud(raw) {
   const saved = isObj(r.saved) ? r.saved : {};
   state.saved = cleanSaved(isObj(saved.items) ? Object.values(saved.items) : []);
   state.savedDeleted = cleanTombstones(saved.deleted);
+  state.usage = cleanUsage(r.usage);
   const weights = isObj(r.weights) ? r.weights : {};
   state.weights = cleanWeights(weights.w);
   const at = stampMap(weights.at, isIso);
@@ -141,6 +144,13 @@ export function weightsPatch(state, isos, now) {
 export function weightsPatchDiff(cloudState, state, now) {
   const isos = Object.keys(state.weights).filter((iso) => cloudState.weights[iso] !== state.weights[iso] || (cloudState.weightsAt[iso] || 0) !== (state.weightsAt[iso] || 0));
   return weightsPatch(state, isos, now);
+}
+
+/** The usage document: tiny and always written whole (the merge already picked the winner). Null when the cloud already has it. */
+export function usagePatch(cloudState, state, now) {
+  const u = cleanUsage(state.usage);
+  if (!u.day || usageEqual(cloudState.usage, u)) return null;
+  return { day: u.day, photos: u.photos, updatedAt: now };
 }
 
 /** Readable form of a patch for tests and logs (the DELETE marker is not JSON). */

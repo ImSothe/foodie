@@ -28,6 +28,7 @@ export const VALID = {
   user: () => ({ profile, profileAt: 1_800_000_000_000, goals: [{ from: '2026-01-01', goals: { kcal: 2000, protein_g: 120, carbs_g: 200, fat_g: 70, waterL: 2.2, steps: 8000 } }], goalsAt: { '2026-01-01': 1_800_000_000_000 }, updatedAt: 1_800_000_000_000 }),
   day: () => ({ meals: { a: meal('a'), b: meal('b') }, deleted: { c: 1_800_000_000_000 }, waterMl: 1500, waterAt: 1_800_000_000_000, steps: 6000, stepsAt: 1_800_000_000_000, updatedAt: 1_800_000_000_000 }),
   saved: () => ({ items: { s1: meal('s1') }, deleted: { s2: 1_800_000_000_000 }, updatedAt: 1_800_000_000_000 }),
+  usage: () => ({ day: DAY, photos: 3, updatedAt: 1_800_000_000_000 }),
   weights: () => ({ w: { [DAY]: 79.5 }, at: { [DAY]: 1_800_000_000_000 }, updatedAt: 1_800_000_000_000 }),
 };
 
@@ -36,6 +37,7 @@ export const pathsOf = (uid) => ({
   day: `users/${uid}/days/${DAY}`,
   saved: `users/${uid}/meta/saved`,
   weights: `users/${uid}/meta/weights`,
+  usage: `users/${uid}/meta/usage`,
 });
 
 /** n entries `{ id0: value, id1: value, ... }` */

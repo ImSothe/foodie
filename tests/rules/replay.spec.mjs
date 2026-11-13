@@ -43,7 +43,7 @@ const readAll = async () => {
   const out = {};
   await env.withSecurityRulesDisabled(async (ctx) => {
     const d = ctx.firestore();
-    for (const path of [`users/${ALICE}`, `users/${ALICE}/meta/saved`, `users/${ALICE}/meta/weights`]) { const s = await fs.getDoc(fs.doc(d, path)); if (s.exists()) out[path] = s.data(); }
+    for (const path of [`users/${ALICE}`, `users/${ALICE}/meta/saved`, `users/${ALICE}/meta/weights`, `users/${ALICE}/meta/usage`]) { const s = await fs.getDoc(fs.doc(d, path)); if (s.exists()) out[path] = s.data(); }
     const days = await fs.getDocs(fs.collection(d, 'users', ALICE, 'days'));
     for (const s of days.docs) out[`users/${ALICE}/days/${s.id}`] = s.data();
   });
@@ -63,6 +63,8 @@ describe('the app against the rules', () => {
     a.store.setSteps(DAY, 4200);
     a.store.logWeight(DAY, 79.4);
     a.store.saveMeal(food('Favorita de A'));
+    a.store.recordPhoto();
+    a.store.recordPhoto();
     await a.sync();
 
     await b.sync();
@@ -71,6 +73,7 @@ describe('the app against the rules', () => {
     b.store.addWater(DAY, 250);
     b.store.logWeight('2026-11-10', 80.1);
     b.store.saveMeal(food('Favorita de B'));
+    b.store.recordPhoto();
     await b.sync();
 
     await a.sync();
@@ -88,7 +91,9 @@ describe('the app against the rules', () => {
       assert.equal(p.store.getProfile().heightCm, 180);
     }
     const docs = await readAll();
-    assert.deepEqual(Object.keys(docs).sort(), [`users/${ALICE}`, `users/${ALICE}/days/${DAY}`, `users/${ALICE}/days/2026-11-10`, `users/${ALICE}/meta/saved`, `users/${ALICE}/meta/weights`].sort());
+    assert.deepEqual(a.store.getUsage(), b.store.getUsage());
+    assert.equal(docs[`users/${ALICE}/meta/usage`].photos, 3, 'b had already pulled the 2 photos of a when it counted its own');
+    assert.deepEqual(Object.keys(docs).sort(), [`users/${ALICE}`, `users/${ALICE}/days/${DAY}`, `users/${ALICE}/days/2026-11-10`, `users/${ALICE}/meta/saved`, `users/${ALICE}/meta/usage`, `users/${ALICE}/meta/weights`].sort());
   });
 
   it('a whole year of data (365 days, a thumbnail a day, 30 favourites) uploads in batches and a fresh phone downloads it', async () => {

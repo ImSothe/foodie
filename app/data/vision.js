@@ -3,12 +3,15 @@
    typed one, a line of context. foodie never stores the photo: only a 160 px thumbnail of at most 12 KB can end up in a meal.
    Rules of this module, all of them tested with fakes (tests/vision-data.test.js):
    - it needs a signed-in person (a rule of the app, not something Google enforces for us; see SECURITY.md);
+   - a soft daily limit per person (core/limits.js, counted in `usage`): checked BEFORE anything is compressed or sent, so a refused photo
+     never reaches the model; a photo counts when the AI answered it, a failed call is free, and a re-run with context is free (twice per photo);
    - App Check is initialised before the model is created, and the call says "not configured" until a site key exists;
    - one analysis at a time, a 3 s cooldown, a 45 s timeout, one retry for a transient failure;
    - every failure becomes a short reason the screen turns into a calm sentence; the answer is parsed by core/vision.js. */
 import { APP_CHECK_SITE_KEY } from './firebase-config.js';
 import { buildVisionPrompt, parseVision, toSdkSchema, VISION_JSON_SCHEMA } from '../core/vision.js';
 import { compressFile, thumbnailDataUrl } from './image.js';
+import { MAX_FREE_RERUNS } from '../core/limits.js';
 
 /**
  * The model to ask: named in the Firebase AI Logic documentation as a current model that needs no billing plan, and the one that
@@ -20,7 +23,7 @@ export const TIMEOUT_MS = 45000;
 export const COOLDOWN_MS = 3000;
 export const RETRY_DELAY_MS = 1500;
 
-/** @typedef {'signed-out'|'not-configured'|'busy-local'|'cooldown'|'bad-image'|'quota'|'app-check'|'offline'|'timeout'|'busy'|'blocked'|'bad-answer'|'error'} VisionProblem */
+/** @typedef {'signed-out'|'not-configured'|'busy-local'|'cooldown'|'bad-image'|'quota'|'app-check'|'offline'|'timeout'|'busy'|'blocked'|'bad-answer'|'daily-limit'|'error'} VisionProblem */
 
 /** Why a call failed, as a reason the screen can act on. Reads the HTTP status, the SDK's error code and the message. */
 export function classifyAiError(e, { onLine = true } = {}) {
@@ -57,14 +60,17 @@ const withTimeout = (promise, ms) => new Promise((resolve, reject) => {
 /**
  * @param {object} o
  * @param {{user:object|null, firebase:()=>Promise<{sdk:object, app:object}>}} o.cloud
+ * @param {{photosLeft:()=>number, recordPhoto:()=>number}} o.usage  the daily counter (the store has both methods)
  * @param {string} [o.appCheckSiteKey]
  * @param {(deps:{sdk:object, app:object, siteKey:string})=>void} [o.initAppCheck]  the App Check hook: the default registers reCAPTCHA Enterprise
  */
 export function createVision({
   cloud, appCheckSiteKey = APP_CHECK_SITE_KEY, now = () => Date.now(), compress = compressFile, toBase64 = blobToBase64,
   delay = (ms) => new Promise((r) => setTimeout(r, ms)), win = globalThis.window, timeoutMs = TIMEOUT_MS, cooldownMs = COOLDOWN_MS,
-  initAppCheck = null, makeThumb = defaultThumb,
+  initAppCheck = null, makeThumb = defaultThumb, usage,
 }) {
+  if (!usage || typeof usage.photosLeft !== 'function' || typeof usage.recordPhoto !== 'function') throw new TypeError('createVision needs a usage counter: the daily limit is not optional');
+  const counted = new WeakMap();           // photo (the Blob the screen holds) -> { reruns }: it was counted already, so adding context is free
   let model = null;
   let appCheckDone = false;
   let inFlight = false;
@@ -114,6 +120,9 @@ export function createVision({
       if (!appCheckSiteKey) return { ok: false, reason: 'not-configured' };
       if (inFlight) return { ok: false, reason: 'busy-local' };
       if (now() - lastEnd < cooldownMs) return { ok: false, reason: 'cooldown' };
+      const prior = counted.get(picture);
+      const free = !!prior && prior.reruns < MAX_FREE_RERUNS;       // a re-run of a photo that was counted already
+      if (!free && usage.photosLeft() <= 0) return { ok: false, reason: 'daily-limit' };      // the limit, before anything else happens
       inFlight = true;
       try {
         const photo = await compress(picture);
@@ -130,7 +139,10 @@ export function createVision({
           text = await callOnce(m, data, photo.blob.type, user);
         }
         const result = parseVision(text);
-        return result.ok ? { ok: true, result, photo: photo.blob } : { ok: false, reason: 'bad-answer' };
+        if (!result.ok) return { ok: false, reason: 'bad-answer' };
+        if (free) prior.reruns += 1;
+        else { usage.recordPhoto(); counted.set(picture, { reruns: 0 }); }       // the AI answered: this photo counts ("not food" too)
+        return { ok: true, result, photo: photo.blob, left: usage.photosLeft() };
       } catch (e) {
         return { ok: false, reason: classifyAiError(e, { onLine: !win || !win.navigator || win.navigator.onLine !== false }) };
       } finally {
