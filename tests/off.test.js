@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { hasValidCheckDigit, normalizeCode, offUrl, per100FromNutriments, productFromOff } from '../app/core/off.js';
+import { hasValidCheckDigit, expandUpcE, normalizeCode, offUrl, per100FromNutriments, productFromOff } from '../app/core/off.js';
 import { macroMismatch } from '../app/core/nutrition.js';
 import { cleanPer100 } from '../app/core/schema.js';
 
@@ -89,4 +89,27 @@ test('hostile records: text is cleaned, impossible numbers are dropped, foreign 
   assert.equal(r.per100.fat_g, 3);
   assert.equal(({}).x, undefined);
   assert.ok(r.missing.includes('protein_g'));
+});
+
+test('UPC-E: expands to the UPC-A it stands for (every zero-suppression rule), and only when the scanner says it is UPC-E', () => {
+  // known expansions: 04252614 -> 042100005264 (last digit 1), 01234565 -> 012345000065 (last digit 5), 06543216 -> 065100004326 style checks below
+  assert.equal(expandUpcE('04252614'), '042100005264');
+  assert.equal(expandUpcE('01234565'), '012345000065');
+  assert.equal(normalizeCode('04252614', 'upc_e'), '042100005264');
+  assert.equal(normalizeCode('04252614'), null, 'without the format it is an 8-digit EAN-8 candidate with a wrong check digit');
+  assert.equal(normalizeCode('04252615', 'upc_e'), null, 'a wrong check digit is still rejected');
+  for (const bad of ['24252614', '4252614', 'abcdefgh', '', '0425261400']) assert.equal(expandUpcE(bad), null, bad);
+  // every zero-suppression rule (last of the six digits 0..9) gives a 12-digit code whose check digit is the UPC-E's own
+  const checkOf = (body11) => { let sum = 0; for (let i = 0; i < 11; i += 1) sum += Number(body11[i]) * (i % 2 === 0 ? 3 : 1); return String((10 - (sum % 10)) % 10); };
+  const expandBody = (n, [a1, b1, c1, d1, e1, f1]) => (f1 <= '2' ? `${n}${a1}${b1}${f1}0000${c1}${d1}${e1}` : f1 === '3' ? `${n}${a1}${b1}${c1}00000${d1}${e1}` : f1 === '4' ? `${n}${a1}${b1}${c1}${d1}00000${e1}` : `${n}${a1}${b1}${c1}${d1}${e1}0000${f1}`);
+  for (const n of ['0', '1']) for (let f = 0; f <= 9; f += 1) {
+    const six = `38${f === 3 || f === 4 ? '7' : '2'}${f === 4 ? '5' : '6'}1${f}`;
+    const body = expandBody(n, six);
+    assert.equal(body.length, 11);
+    const upcE = `${n}${six}${checkOf(body)}`;
+    assert.equal(expandUpcE(upcE), body + checkOf(body), upcE);
+    assert.equal(normalizeCode(upcE, 'upc_e'), body + checkOf(body), upcE);
+  }
+  assert.equal(normalizeCode('96385074', 'upc_e'), null, 'a real EAN-8 labelled as UPC-E does not pass as one');
+  assert.equal(normalizeCode('96385074', 'ean_8'), '96385074');
 });

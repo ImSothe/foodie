@@ -19,13 +19,33 @@ export function hasValidCheckDigit(digits) {
 }
 
 /**
+ * UPC-E is a zero-suppressed UPC-A (small packs, mostly North America): 8 digits = number system, six digits, check digit.
+ * The last of the six digits says where the suppressed zeros go. Returns the 12-digit UPC-A it stands for, or null.
+ */
+export function expandUpcE(digits) {
+  if (!/^[01]\d{7}$/.test(digits)) return null;
+  const n = digits[0];
+  const [a, b, c, d, e, f] = digits.slice(1, 7);
+  const check = digits[7];
+  let body;
+  if ('012'.includes(f)) body = `${n}${a}${b}${f}0000${c}${d}${e}`;
+  else if (f === '3') body = `${n}${a}${b}${c}00000${d}${e}`;
+  else if (f === '4') body = `${n}${a}${b}${c}${d}00000${e}`;
+  else body = `${n}${a}${b}${c}${d}${e}0000${f}`;
+  const upcA = body + check;
+  return hasValidCheckDigit(upcA) ? upcA : null;
+}
+
+/**
  * What a scanner returned (a barcode number, or the text of a QR code) as a product code, or null.
  * A QR is accepted only when it is a bare number or a GS1 Digital Link (…/01/<gtin>/…); any other text, and any link, is ignored.
+ * `format` is what the scanner says it read: an 8-digit `upc_e` is expanded to its UPC-A (its check digit is not an EAN-8 one).
  */
-export function normalizeCode(raw) {
+export function normalizeCode(raw, format = '') {
   if (typeof raw !== 'string' || raw.length > 300) return null;
   const text = raw.trim();
   let digits = null;
+  if (format === 'upc_e' && /^\d{8}$/.test(text)) return expandUpcE(text);
   if (/^\d{8,14}$/.test(text)) digits = text;
   else {
     const link = text.match(/^https?:\/\/[^\s/]+\/(?:[^\s/]+\/)*01\/(\d{14})(?:[/?#]|$)/i);

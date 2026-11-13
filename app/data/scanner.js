@@ -67,7 +67,7 @@ export function createScanner({
         if (!running) return;
         for (const r of Array.isArray(found) ? found : []) {
           const raw = r && typeof r.rawValue === 'string' ? r.rawValue : '';
-          const code = normalizeCode(raw);
+          const code = normalizeCode(raw, String(r.format || ''));
           if (code) { running = false; onCode(code, { format: String(r.format || '') }); return; }
           if (raw && now() - lastNotice > IGNORED_NOTICE_GAP_MS) { lastNotice = now(); onIgnored(r.format === 'qr_code' ? 'qr' : 'other'); }
         }
