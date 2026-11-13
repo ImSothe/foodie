@@ -17,9 +17,11 @@ test('the tests that use the storage helper are found', () => {
   for (const f of ['store.test.js', 'security.test.js']) assert.ok(files.includes(f), f);
 });
 
+// The reporter is named on purpose: the default one depends on the Node version and on whether stdout is a terminal (TAP on Node 22 in CI,
+// spec locally on Node 26), and this test reads the spec summary lines.
 for (const f of files) {
   test(`${f} passes unchanged against the IndexedDB storage layer`, () => {
-    const r = spawnSync(process.execPath, ['--test', join(dir, f)], { env: { ...process.env, FOODIE_BACKEND: 'idb', NODE_TEST_CONTEXT: undefined }, encoding: 'utf8' });
+    const r = spawnSync(process.execPath, ['--test', '--test-reporter=spec', join(dir, f)], { env: { ...process.env, FOODIE_BACKEND: 'idb', NODE_TEST_CONTEXT: undefined }, encoding: 'utf8' });
     const summary = (r.stdout.match(/^ℹ (tests|pass|fail) \d+$/gm) || []).join(', ');
     assert.equal(r.status, 0, `${f} failed with the IndexedDB backend (${summary})\n${r.stdout.split('\n').filter((l) => /^✖/.test(l)).join('\n')}`);
     assert.match(r.stdout, /ℹ fail 0/);
