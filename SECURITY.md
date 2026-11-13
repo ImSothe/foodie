@@ -52,11 +52,41 @@ Not defended, and worth knowing:
 - **The write-behind window.** A crash or a killed tab in the 400 ms before a write can lose the last edit. The page flushes when it is hidden or closed; there is no flush on a power cut.
 - **Real-browser coverage is Chromium only.** The tests use a fake IndexedDB; Safari's behaviour (including on an installed iPhone app) has not been verified.
 
-## Cloud copy (optional): what is defended and what is not
+## Cloud copy (optional): end-to-end encrypted
+
+When you sign in, a copy of your data is kept in Firestore. It is encrypted on your device with a passphrase you choose, before it is uploaded, so that nobody with access to the Firebase console (the project's owner, editors, Google) can read it. The design is in `app/core/crypto.js`, `app/core/cloudseal.js` and `app/data/keyring.js`; WebCrypto only, no dependency.
+
+| What | How |
+|---|---|
+| Key | PBKDF2-HMAC-SHA-256, 600,000 iterations, from your passphrase and a random 16-byte salt, giving an AES-256-GCM key. About 70 ms on a desktop computer; a mid-range phone takes roughly one second. A client refuses a verifier asking for fewer iterations. |
+| Records | Each record (a meal, a favourite, a weight, a goals entry, the profile, a day's water, a day's steps) is sealed on its own with a fresh random 12-byte IV. Overhead per record: 28 bytes of IV and tag, base64 (about 4/3), plus about 50 characters of field names; a typical meal of 62 characters becomes about 143. |
+| Binding | The additional authenticated data of every record is (user id, document, field, record id), so a record copied to another day, id, field or account fails to open. The edit stamp is sealed inside the record too, and the clear stamp next to it is never believed. |
+| Verifier | `users/{uid}.crypto` = { salt, iterations, `check` } where `check` is a fixed sentence sealed with the key: a passphrase can be tested without being stored. A wrong passphrase costs one second per attempt in the app. |
+| Key custody | Derived once per device and kept as a **non-extractable** CryptoKey in its own IndexedDB database (`foodie-keys`). The passphrase is never stored, logged, sent or put in any storage; the key is never in `localStorage`, Firestore or the exported data. Signing out removes the key from the device. |
+| A record that does not open | Tampered, from another key, malformed: it is dropped and counted ("N registros de la nube no se pudieron abrir"), never shown, never crashes the sync, and a copy kept on a phone repairs it the next time that phone does a full sync. |
+
+What is **protected**: the content of every record in Firestore: meals (names, ingredients, values, thumbnails), favourites, weights, goals, profile, water and steps values.
+
+What is **not** protected, and the app says so:
+
+- **Metadata the server must see to work:** document ids (the dates you use the app), how many records there are and how big, their ids, edit times, deletion tombstones, and the daily photo counter. Someone with console access can see that you exist, which days you log and roughly how much.
+- **The photo while it is analysed.** It is sent to Google's Gemini; encryption does not cover that path.
+- **The data on your device.** Local storage is not encrypted: anyone with your unlocked phone or browser profile can read it.
+- **A weak passphrase.** The verifier is stored in the cloud, so someone who can read it can guess passphrases offline. The 600,000 iterations make each guess slow, not impossible. Use a phrase of several words.
+- **Losing the passphrase.** The cloud copy cannot be recovered, by design: nobody can. "Olvidé mi contraseña" deletes the cloud copy and uploads again what is on a phone under a new passphrase; anything that existed only in the cloud is lost.
+- **Rollback.** Whoever controls the server can hand back an older, valid copy of a record. Encryption stops reading and tampering, not replay.
+- **Two phones choosing a passphrase at the same moment** can race; the later one finds the first one's verifier and is asked to unlock instead.
+
+Rollout of the rules (the owner publishes them by hand, in order):
+
+1. **Phase 1** (the `firestore.rules` in the repository until the owner says everybody updated): accepts plaintext and encrypted documents, so a phone still running an older copy of the app keeps working. Publish it before the apps that encrypt go out. An account is migrated on its first sync after the update: the app asks for a passphrase, uploads everything sealed, reads it back, opens it, compares it, and only then removes the plaintext. If anything fails it keeps the plaintext and says so; an interrupted migration is finished by the next sync (tested with the connection cut at every Firestore call).
+2. **Phase 2** (one line, `plaintextAllowed()` returns false): only encrypted documents are accepted. Publish it only after every phone has updated and been migrated. An old copy of the app that still writes plaintext after phase 1 re-creates readable data until then; each updated phone seals and removes it on its next sync. After phase 2 an account that was never migrated cannot be migrated in place (the emulator test shows the error).
+
+### Other protections of the cloud copy
 
 | Risk | Defence | Test |
 |---|---|---|
-| Someone reading another user's data | `firestore.rules`: deny by default; a signed-in user can read and write only `users/{their uid}`; every write validates field names, types, ranges and map sizes | `tests/rules/` (the rules executed against the real Firestore emulator: owner, another user, signed-out, unknown paths, every validator at its limits, and the app's real sync replayed from two devices); `rules.test.js` (static text checks) |
+| Someone reading another user's data (other accounts; the owner and Google are covered by the encryption above) | `firestore.rules`: deny by default; a signed-in user can read and write only `users/{their uid}`; every write validates field names, types, ranges and map sizes | `tests/rules/` (the rules executed against the real Firestore emulator: owner, another user, signed-out, unknown paths, every validator at its limits, and the app's real sync replayed from two devices); `rules.test.js` (static text checks) |
 | A different account on the same phone inheriting the first one's data | On sign-in, if the stored account id differs, the local data is cleared before anything is merged | `cloud.test.js` ("another account ...") |
 | Hostile or corrupt cloud documents | Everything that comes back goes through the same cleaners as local data before it is merged or shown | `cloud.test.js`, `merge.test.js`, fuzzing in `security.test.js` |
 | Two devices overwriting each other | Per-record merge: newest edit wins, deletions travel as tombstones, a clock far in the future is capped; merging is commutative, idempotent and associative | `merge.test.js` (2,000 generated state triples), `cloud.test.js` (two devices) |
@@ -68,7 +98,7 @@ Not defended, and worth knowing:
 
 - **What the emulator tests prove, and what they do not.** `npm run test:rules` (CI job `rules`) loads `firestore.rules` into the Firestore emulator and sends real requests: 95 checks of access and validation, plus the real `cloud.js` sync replayed from two devices, including a year of data. They were mutation-checked (ten deliberate weakenings of the rules, nine caught; the tenth only added a key nobody writes). They prove the rules file does what it says. They do **not** prove the file published in the Firebase console is this file: publishing is a manual step, and CI cannot see the console. After changing `firestore.rules`, publish it and compare. The emulator tooling (Firebase tools, about 460 MB with its dependencies, Java 21 and a 137 MB emulator jar) lives only in `tests/rules/`, is pinned to exact versions with a lockfile, runs in its own CI job that the Pages deploy does not wait for, and is not part of the app or of `npm test`. The pinned tools report known advisories in their own dependencies (a local developer tool, never served).
 - **Rules check shape, not the calendar or the content.** A day id only has to look like `YYYY-MM-DD` (the emulator tests show `2026-13-45` is accepted; the app's cleaners ignore it on every read). Rules cannot look inside a meal: they cap how many entries a map may hold and check each field's type and range; the content of meals (names, items, per-100 g values) is checked by the app's cleaners on every read and write. A user can only damage their own data.
-- **Google sees your data.** It is stored in Google's Firestore (eur3, Europe) under your Google account id. foodie has no server of its own and cannot read it without you being signed in.
+- **Google stores your data, encrypted.** It is kept in Google's Firestore (eur3, Europe) under your Google account id. What Google and the project's administrators can read is the metadata listed above, not your data.
 - **Sign-in was verified up to Google's account page, not past it.** Opening the popup and reaching Google's sign-in produced no CSP violation; a complete sign-in, and the sync against the real Firestore, still need to be exercised by a person with a Google account (including the installed iPhone PWA).
 
 ## Camera and barcode scanning: what is defended and what is not

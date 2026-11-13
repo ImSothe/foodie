@@ -57,6 +57,7 @@ That one rule shaped the rest:
 | Local-first: the app works fully without an account | It opens instantly, works offline, and sign-in becomes a backup feature instead of a gate. | Sync has to resolve conflicts: every record carries its edit time, deletions travel as tombstones, and merging is tested to give the same result in any order. |
 | Data on the device lives in IndexedDB, behind the same synchronous store | `localStorage` holds about 5 MB: months of use, but not a year with photo thumbnails. IndexedDB has no such ceiling, and the store keeps its simple synchronous API by loading everything into memory at start and writing changes behind (400 ms, and on hide or close). A one-time migration moves old data over, verified by reading it back before anything is trusted. | A short wait at start while the database opens (about 20 ms for a year of data here), a 2.5 s timeout with a visible warning if it never opens, and a last edit can be lost if the tab is killed within 400 ms. |
 | A soft daily limit of 10 photo analyses per person | The AI's free quota is shared by every user of the project, and one person (or a bug) could use it all. The limit is counted in the app and synced between phones. | It is not server-enforced: someone who edits their own data can pass it. The real protections are App Check and the per-project limits in Google's console; the soft limit keeps honest use fair. Barcode and search are never limited. |
+| The cloud copy is encrypted on the phone, with a passphrase only the person knows | The owner of a Firebase project can open any document in the console, and "I do not read your data" is only a promise. Encrypting before upload turns it into a property of the design, with the usual tools (PBKDF2, AES-GCM, WebCrypto, no dependency). | If the passphrase is lost the cloud copy cannot be recovered, by design. The server still sees metadata (dates, counts, sizes), a weak passphrase can be guessed offline, and the rules cannot check what is inside an encrypted record. |
 | Carbohydrate means available carbohydrate, fibre counted apart | It is what EU labels and Open Food Facts use. Mixing it with the US "total carbohydrate" definition would silently double-count fibre. | US-sourced values are converted on import, and the energy check uses the EU factors (fibre at 2 kcal/g). |
 | Food values come from USDA FoodData Central, not written by hand | The first table was typed from memory and passed every test, because the tests only checked internal consistency. I then compared it with the Spanish BEDCA database and found real gaps. BEDCA's terms do not allow republishing, so the table was rebuilt from USDA SR Legacy (public domain), each entry carrying its source id. | Seven Spain-specific foods have no USDA entry and are labelled `estimate`. |
 | Goals from a standard formula, with floors | Mifflin-St Jeor for energy, protein and fat per kg of body weight, sex-specific reference intakes. A deficit never goes below a safe floor, and the app says when the floor was applied. | These are estimates, and the app says so. It is not medical advice. |
@@ -85,7 +86,7 @@ What works today, all on your device:
 - **Progress:** a month calendar of the days you met your goal, average calories per week, weight history.
 - **Settings:** edit profile and goals (past days keep the goals they had), light and dark theme, export everything as JSON, delete it from the device.
 
-- **Cloud copy (optional):** one button in Settings, "Continuar con Google". Meals, water, steps, favourites, weights, goals and profile sync between devices; the newest edit wins and a deletion on one phone reaches the others. The app works the same without an account.
+- **Cloud copy (optional):** one button in Settings, "Continuar con Google". Meals, water, steps, favourites, weights, goals and profile sync between devices, encrypted with a passphrase you choose; the newest edit wins and a deletion on one phone reaches the others. The app works the same without an account.
 
 - **Camera and barcode:** `+` opens the rear camera at once, with four modes at the bottom: Foto, Código, Etiqueta, Buscar. In Código the barcode (EAN-13, EAN-8, UPC-A, UPC-E, ITF-14, Code 128/39/93, Codabar, GS1 DataBar, or a QR that holds a product number; Data Matrix, PDF417 and Aztec are read too but only a product number becomes a product) is read on its own, the product is looked up in Open Food Facts, and one button adds it. The browser's own barcode detector is used when it has one; otherwise a WebAssembly reader (about 0.4 MB, vendored, downloaded only the first time it is needed). Products you have scanned are remembered on the device, so a repeat scan is instant and works offline. Without camera permission, `+` still works: you can type the code, choose a photo from the gallery, or search.
 
@@ -97,7 +98,8 @@ Not there yet: reading labels reliably (not checked against real labels), and an
 
 - Without an account, everything stays on your device.
 - With "Continuar con Google", a copy of your data is stored in this project's Firestore database (Europe), under your Google account id. Photos are never stored; only a tiny thumbnail of each analysed plate is kept with the meal.
-- **The author does not read your data and does not want to.** But it is a promise, not a technical guarantee: whoever administers the Firebase project can open any document from the console, because the data is not end-to-end encrypted. If you are not comfortable with that, use the app without an account.
+- **The cloud copy is end-to-end encrypted.** Before anything is uploaded, your meals, favourites, weights, goals, profile, water and steps are encrypted on your phone with a passphrase you choose (PBKDF2 and AES-256-GCM through the browser's WebCrypto). The author and anyone with access to the Firebase console cannot read them; that is a technical property, not a promise, and [SECURITY.md](SECURITY.md) lists the tests. What they can still see: that your account exists, the dates you use the app, how many records there are and how big, and the daily photo counter. If you forget the passphrase the cloud copy cannot be recovered (the data on your phone stays). The data on your phone is not encrypted.
+- **Not covered by that:** photo analysis sends the photo to Google (below), and a weak passphrase can be guessed offline by someone who can read the stored verifier.
 - Photo analysis sends the photo to Google's Gemini through Firebase AI Logic. foodie does not keep it.
 
 ## Testing and security
@@ -105,7 +107,7 @@ Not there yet: reading labels reliably (not checked against real labels), and an
 This is the part I would look at first in someone else's repo, so it is the part I spent the most care on.
 
 ```bash
-npm test          # 381 tests, no dependencies, about a second
+npm test          # 450 tests, no dependencies, about a second
 npm run test:rules # firestore.rules against the real Firestore emulator (needs Java 21 and `npm ci --prefix tests/rules`)
 npm run coverage  # 98 % lines, 89 % branches overall; most of the pure core is at 100 % lines
 ```
