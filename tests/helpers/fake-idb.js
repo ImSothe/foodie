@@ -61,6 +61,7 @@ export function fakeIndexedDB(controls = {}) {
       return {
         put: (value, key) => { if (mode !== 'readwrite') throw new Error('read-only transaction'); staged.puts.set(key, value); staged.deletes = staged.deletes.filter((k) => k !== key); return settle(key); },
         delete: (key) => { if (mode !== 'readwrite') throw new Error('read-only transaction'); staged.deletes.push(key); staged.puts.delete(key); return settle(undefined); },
+        clear: () => { if (mode !== 'readwrite') throw new Error('read-only transaction'); for (const k of records.keys()) staged.deletes.push(k); staged.puts.clear(); return settle(undefined); },
         get: (key) => settle(() => records.get(key)),
         getAll: () => settle(() => [...records.values()]),
         getAllKeys: () => settle(() => [...records.keys()]),

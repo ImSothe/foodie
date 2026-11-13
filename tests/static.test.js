@@ -234,7 +234,8 @@ test('forbidden APIs: postMessage, document.cookie, window.name, IndexedDB, Broa
   //                        and still reads localStorage once for the migration and as the fallback when IndexedDB cannot be used;
   //   boot.js              owns localStorage for the theme only (fd.theme), because it must run before the first paint;
   //   data/store.js        touches no storage API at all any more: it gets a storage object from idb-storage.js.
-  const OWNERS = { indexedDB: ['data/idb-storage.js'], BroadcastChannel: ['data/idb-storage.js'], postMessage: ['data/idb-storage.js'], localStorage: ['data/idb-storage.js', 'boot.js'] };
+  //   data/keyring.js      owns indexedDB for ONE more database, "foodie-keys": the non-extractable encryption key of the cloud copy (never the passphrase).
+  const OWNERS = { indexedDB: ['data/idb-storage.js', 'data/keyring.js'], BroadcastChannel: ['data/idb-storage.js'], postMessage: ['data/idb-storage.js'], localStorage: ['data/idb-storage.js', 'boot.js'] };
   const banned = [[/\bpostMessage\b/, 'postMessage'], [/document\.cookie/, 'document.cookie'], [/\bwindow\.name\b/, 'window.name'], [/\bindexedDB\b/, 'indexedDB'],
     [/\bBroadcastChannel\b/, 'BroadcastChannel'], [/\bsessionStorage\b/, 'sessionStorage'], [/\blocalStorage\b/, 'localStorage'], [/\bcaches\b/, 'caches']];
   for (const f of [...ownJs, 'sw.js', 'boot.js']) {
@@ -252,6 +253,9 @@ test('forbidden APIs: postMessage, document.cookie, window.name, IndexedDB, Broa
   const idb = appSource('data/idb-storage.js');
   assert.ok(/DB_NAME = 'foodie'/.test(idb) && /STORE_NAME = 'kv'/.test(idb) && /MARKER_KEY = 'fd\.migrated'/.test(idb));
   assert.ok(!/indexedDB\.(deleteDatabase|databases)/.test(idb), 'it never deletes or lists databases of the origin (other apps have theirs)');
+  const keyring = appSource('data/keyring.js');
+  assert.ok(/KEYS_DB = 'foodie-keys'/.test(keyring) && /KEYS_STORE = 'keys'/.test(keyring), 'the keyring has its own database');
+  assert.ok(!/indexedDB\.(deleteDatabase|databases)/.test(keyring) && !/localStorage|sessionStorage|document\.cookie|console\./.test(keyring), 'the keyring only keeps keys, and tells nobody');
 });
 
 test('main.js resolves routes through resolveRoute and never indexes ROUTES with the address', () => {
