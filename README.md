@@ -91,6 +91,13 @@ What works today, all on your device:
 
 Not there yet: reading labels reliably (not checked against real labels), and anything beyond a rough estimate: the model's answer is an estimate and the app says how sure it is. Steps are typed by hand.
 
+## Privacy
+
+- Without an account, everything stays on your device.
+- With "Continuar con Google", a copy of your data is stored in this project's Firestore database (Europe), under your Google account id. Photos are never stored; only a tiny thumbnail of each analysed plate is kept with the meal.
+- **The author does not read your data and does not want to.** But it is a promise, not a technical guarantee: whoever administers the Firebase project can open any document from the console, because the data is not end-to-end encrypted. If you are not comfortable with that, use the app without an account.
+- Photo analysis sends the photo to Google's Gemini through Firebase AI Logic. foodie does not keep it.
+
 ## Testing and security
 
 This is the part I would look at first in someone else's repo, so it is the part I spent the most care on.

@@ -33,6 +33,7 @@ export function cloudCard(cloud) {
     return h('section', { class: 'card cloud-card' },
       h('h2', { class: 'section-title' }, 'Copia en la nube'),
       h('p', { class: 'muted' }, 'Guarda tus datos y úsalos en otro móvil. Entras con tu cuenta de Google y no hay nada más que configurar. La app sigue funcionando igual sin cuenta.'),
+      h('p', { class: 'small muted' }, 'Tus datos se guardan en la base de datos de este proyecto, ligados a tu cuenta de Google. El autor no los mira, pero conviene que sepas que quien administra el proyecto podría verlos desde la consola: no van cifrados de extremo a extremo.'),
       googleSignInButton(cloud));
   }
   const sync = h('button', { type: 'button', class: 'btn btn-secondary', disabled: cloud.status === 'syncing', onClick: () => cloud.syncNow() }, 'Sincronizar ahora');
