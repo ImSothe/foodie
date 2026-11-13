@@ -1,7 +1,7 @@
 <!doctype html>
-<!-- Source of the app icon: a burger built from the three macros (saffron bun = carbohydrates, salmon patty =
-     protein, blueberry layer = fat) with one bite taken. tools/make_icons.py opens this page in headless Chrome
-     and saves the PNG the page leaves in <body data-png>.   ?size=192  output size in px   ?pad=1  maskable safe zone -->
+<!-- Source of the app icon: a ruffled lettuce leaf, two leaves in front of each other, with veins and a soft highlight.
+     tools/make_icons.py opens this page in headless Chrome and saves the PNG the page leaves in <body data-png>.
+     ?size=192  output size in px   ?pad=1  maskable safe zone -->
 <html>
 <head>
 <meta charset="utf-8">
@@ -16,41 +16,110 @@
     const c = document.getElementById('c');
     c.width = c.height = size;
     const x = c.getContext('2d');
+
+    // background: near-black with a faint green glow behind the leaf
     x.fillStyle = '#0A0A0C';
     x.fillRect(0, 0, size, size);
+    const glow = x.createRadialGradient(size / 2, size * 0.5, size * 0.05, size / 2, size * 0.5, size * 0.62);
+    glow.addColorStop(0, 'rgba(120, 220, 90, 0.20)');
+    glow.addColorStop(1, 'rgba(120, 220, 90, 0)');
+    x.fillStyle = glow;
+    x.fillRect(0, 0, size, size);
 
-    // The burger is drawn on its own layer (512 px design grid) so the bite can cut through every layer at once.
-    const layer = document.createElement('canvas');
-    layer.width = layer.height = 512;
-    const b = layer.getContext('2d');
-    const CARBS = '#F5B83D', PROTEIN = '#FF6B6B', FAT = '#7AA2FF';
-    const bar = (color, left, top, width, height, radii) => {
-      b.fillStyle = color;
-      b.beginPath();
-      b.roundRect(left, top, width, height, radii);
-      b.fill();
-    };
-    b.translate(0, -18);
-    b.fillStyle = CARBS;                       // top bun
-    b.beginPath();
-    b.ellipse(256, 232, 148, 124, 0, Math.PI, 0);
-    b.closePath();
-    b.fill();
-    bar(FAT, 88, 256, 336, 30, 15);
-    bar(PROTEIN, 104, 306, 304, 54, 27);
-    bar(CARBS, 112, 380, 288, 60, [8, 8, 44, 44]);   // bottom bun
+    x.translate(size / 2, size / 2);
+    const k = (size / 512) * (q.has('pad') ? 0.8 : 1);
+    x.scale(k, k);
 
-    b.globalCompositeOperation = 'destination-out';  // the bite, top right
-    for (const [cx, cy, r] of [[404, 150, 54], [440, 214, 40], [352, 108, 30]]) {
-      b.beginPath();
-      b.arc(cx, cy, r, 0, Math.PI * 2);
-      b.fill();
+    const TAU = Math.PI * 2;
+    // Outline of a lettuce leaf in a 512 grid: wide ruffled top, narrow base. Points go round once from the top.
+    function outline(halfW, halfH, ruffle, phase) {
+      const pts = [];
+      const N = 360;
+      for (let i = 0; i < N; i += 1) {
+        const t = (i / N) * TAU;
+        const ux = Math.sin(t);
+        const uy = -Math.cos(t);                          // -1 at the top, +1 at the base
+        const taper = 0.34 + 0.66 * Math.pow((1 - uy) / 2, 0.55);
+        const amp = ruffle * (1 - 0.7 * ((uy + 1) / 2));  // frillier at the top
+        const wave = 1 + amp * Math.sin(11 * t + phase) + amp * 0.45 * Math.sin(23 * t + phase * 2);
+        pts.push([ux * halfW * taper * wave, uy * halfH * (1 + amp * 0.35 * Math.sin(11 * t + phase))]);
+      }
+      return pts;
+    }
+    function path(pts) {
+      x.beginPath();
+      pts.forEach(([px, py], i) => (i ? x.lineTo(px, py) : x.moveTo(px, py)));
+      x.closePath();
+    }
+    function veins(halfH, color, widthScale) {
+      x.lineCap = 'round';
+      x.strokeStyle = color;
+      // central vein
+      x.lineWidth = 9 * widthScale;
+      x.beginPath();
+      x.moveTo(0, halfH * 0.92);
+      x.quadraticCurveTo(10, 0, 0, -halfH * 0.78);
+      x.stroke();
+      // side veins, branching up and out
+      x.lineWidth = 5 * widthScale;
+      for (let i = 0; i < 5; i += 1) {
+        const y = halfH * (0.62 - i * 0.31);
+        const reach = 40 + (4 - Math.abs(i - 2.2)) * 20;
+        for (const side of [-1, 1]) {
+          x.beginPath();
+          x.moveTo(0, y);
+          x.quadraticCurveTo(side * reach * 0.55, y - 6, side * reach, y - 34 - i * 4);
+          x.stroke();
+        }
+      }
+    }
+    function leaf(opts) {
+      x.save();
+      x.translate(opts.dx, opts.dy);
+      x.rotate(opts.rot);
+      const pts = outline(opts.halfW, opts.halfH, opts.ruffle, opts.phase);
+      // soft drop shadow so the front leaf lifts off the back one
+      x.shadowColor = 'rgba(0, 0, 0, 0.45)';
+      x.shadowBlur = 26;
+      x.shadowOffsetY = 10;
+      const g = x.createLinearGradient(-opts.halfW, -opts.halfH, opts.halfW * 0.6, opts.halfH);
+      g.addColorStop(0, opts.from);
+      g.addColorStop(1, opts.to);
+      x.fillStyle = g;
+      path(pts);
+      x.fill();
+      x.shadowColor = 'transparent';
+      // light edge along the ruffles
+      x.lineWidth = 5;
+      x.strokeStyle = opts.edge;
+      x.stroke();
+      // veins, clipped to the leaf
+      x.save();
+      path(pts);
+      x.clip();
+      veins(opts.halfH, opts.vein, 1);
+      // highlight on the upper left
+      const hl = x.createRadialGradient(-opts.halfW * 0.35, -opts.halfH * 0.45, 4, -opts.halfW * 0.35, -opts.halfH * 0.45, opts.halfW * 0.9);
+      hl.addColorStop(0, 'rgba(255, 255, 255, 0.30)');
+      hl.addColorStop(1, 'rgba(255, 255, 255, 0)');
+      x.fillStyle = hl;
+      x.fillRect(-opts.halfW * 1.5, -opts.halfH * 1.2, opts.halfW * 3, opts.halfH * 2.4);
+      x.restore();
+      // stem
+      if (opts.stem) {
+        x.fillStyle = opts.stem;
+        x.beginPath();
+        x.roundRect(-9, opts.halfH * 0.86, 18, 40, 9);
+        x.fill();
+      }
+      x.restore();
     }
 
-    const k = (size / 512) * (q.has('pad') ? 0.78 : 1);
-    x.translate(size / 2, size / 2);
-    x.scale(k, k);
-    x.drawImage(layer, -256, -256);
+    // back leaf: deeper green, leaning left
+    leaf({ dx: -34, dy: 6, rot: -0.30, halfW: 150, halfH: 200, ruffle: 0.075, phase: 1.1, from: '#2FA64E', to: '#0E5A2C', edge: '#7BD66A', vein: 'rgba(214, 255, 190, 0.40)', stem: null });
+    // front leaf: fresh light green, leaning right
+    leaf({ dx: 26, dy: 14, rot: 0.16, halfW: 150, halfH: 205, ruffle: 0.08, phase: 0, from: '#D2F77A', to: '#3FBF4F', edge: '#EAFFB8', vein: 'rgba(255, 255, 235, 0.50)', stem: '#C7EE86' });
+
     document.body.dataset.png = c.toDataURL('image/png');
   })();
 </script>
