@@ -148,7 +148,7 @@ export function openPhoto({ store, day, cloud, vision, picture, label = false, o
   // ---------- the flow ----------
   async function analyze(context, { final = false } = {}) {
     if (closed) return;
-    analyzing(context ? 'Calculando con tu contexto' : 'Analizando la foto');
+    analyzing(!cloud.user ? 'Comprobando tu sesión' : context ? 'Calculando con tu contexto' : 'Analizando la foto');
     const r = await vision.analyze(picture, { context, label });
     if (closed) return;
     if (!r.ok) {

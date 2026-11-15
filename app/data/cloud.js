@@ -41,6 +41,8 @@ export function createCloud({ store, loadSdk = () => import('../vendor/firebase.
   let failedRecords = 0;                   // records of the last pull that did not open (tampered, another key): dropped, never shown
   let migration = { pending: 0 };          // plaintext records still in the cloud after the last sync (0 = nothing left); -1 = the cleanup itself failed
   let suppress = false;                    // the store is being written by the sync itself
+  let settled = false;                     // the SDK has reported, at least once, whether somebody is signed in (before that, `user` is "unknown", not "nobody")
+  const settleWaiters = new Set();
 
   const set = (next, error = '') => { status = next; lastError = error; for (const fn of [...listeners]) { try { fn(); } catch (e) { /* a broken listener must not stop the sync */ } } };
 
@@ -58,6 +60,8 @@ export function createCloud({ store, loadSdk = () => import('../vendor/firebase.
   }
 
   function onAuth(u) {
+    settled = true;
+    for (const fn of [...settleWaiters]) fn();
     user = u ? { uid: u.uid, name: u.displayName || '', email: u.email || '' } : null;
     if (!user) { ctx = null; pendingVerifier = null; set('signed-out'); return; }
     if (ctx && ctx.uid !== user.uid) { ctx = null; pendingVerifier = null; }
@@ -238,6 +242,19 @@ export function createCloud({ store, loadSdk = () => import('../vendor/firebase.
     prepare,
     /** The loaded SDK and the Firebase app, for the parts that need them besides sync (the photo analysis). */
     async firebase() { const m = await prepare(); return { sdk: m, app }; },
+    /**
+     * Resolves true as soon as it is known whether somebody is signed in (cloud.user is reliable from then on), false if that cannot be known
+     * within `ms` (no connection, SDK not loaded). Without this, a session that is still being restored looks like "signed out".
+     */
+    async whenSettled(ms = 8000) {
+      if (settled) return true;
+      let timer = 0;
+      const gone = new Promise((resolve) => { const fn = () => { settleWaiters.delete(fn); resolve(true); }; settleWaiters.add(fn); timer = setTimeout(() => { settleWaiters.delete(fn); resolve(false); }, ms); });
+      prepare().catch(() => {});
+      const ok = await gone;
+      clearTimeout(timer);
+      return ok;
+    },
     /** Start in the background if this device was signed in before; costs nothing otherwise. */
     start() { const info = store.getSyncInfo(); if (info.uid && info.lastPull > 0) prepare().catch((e) => set('error', (e && e.code) || 'load')); },
     async signIn() {

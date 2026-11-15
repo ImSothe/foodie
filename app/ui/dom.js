@@ -98,10 +98,29 @@ export function openSheet({ title, content, onClose }) {
 }
 
 let toastTimer = 0;
+let toastHost = null;
+/**
+ * Where the toast host has to live. A modal <dialog> sits in the browser's top layer and hides everything outside it, so a message shown while
+ * a sheet or the camera is open would be there but invisible: it lives inside the topmost open dialog then, and on the page otherwise.
+ * @param {{querySelectorAll:(s:string)=>ArrayLike<any>, body:any}} doc
+ */
+export function toastParent(doc) {
+  const open = doc.querySelectorAll('dialog[open]');
+  return open.length ? open[open.length - 1] : doc.body;
+}
+// When the dialog that holds the host closes (it is removed right after), the host goes back to the page before it is lost with the dialog.
+if (typeof document !== 'undefined') {
+  document.addEventListener('close', (e) => {
+    const t = e.target;
+    if (toastHost && t && t !== toastHost && typeof t.contains === 'function' && t.contains(toastHost)) document.body.append(toastHost);
+  }, true);
+}
 /** Short message above the tab bar. `action` = { label, fn } adds one button. */
 export function toast(message, action) {
-  const host = $('#toasts');
-  if (!host) return;
+  if (!toastHost || !toastHost.isConnected) toastHost = $('#toasts') || h('div', { id: 'toasts', 'aria-live': 'polite' });
+  const host = toastHost;
+  const parent = toastParent(document);
+  if (host.parentNode !== parent) parent.append(host);
   clearTimeout(toastTimer);
   const el = h('div', { class: 'toast' }, h('span', null, message),
     action ? h('button', { class: 'toast-action', onClick: () => { host.replaceChildren(); action.fn(); } }, action.label) : null);

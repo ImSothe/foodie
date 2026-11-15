@@ -116,6 +116,11 @@ export function createVision({
      * @returns {Promise<{ok:true, result:object, photo:Blob}|{ok:false, reason:VisionProblem}>}
      */
     async analyze(picture, { context = '', label = false } = {}) {
+      if (!cloud.user && typeof cloud.whenSettled === 'function') {
+        // A session that is still being restored is not "signed out": wait for the SDK to say. If it cannot (no connection), that is a connection problem.
+        const known = await cloud.whenSettled();
+        if (!cloud.user && !known) return { ok: false, reason: 'offline' };
+      }
       if (!cloud.user) return { ok: false, reason: 'signed-out' };
       if (!appCheckSiteKey) return { ok: false, reason: 'not-configured' };
       if (inFlight) return { ok: false, reason: 'busy-local' };
