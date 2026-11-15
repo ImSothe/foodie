@@ -50,7 +50,7 @@ Not defended, and worth knowing:
 - **A script on the same origin can read the database**, as it could read `localStorage`. `BroadcastChannel` messages are also readable by same-origin scripts; they carry only the names of changed keys, never data.
 - **Eviction.** Browsers may delete site data under storage pressure or after a long time without use (Safari does this for sites that are not installed). The app asks nothing of the browser (it does not request persistent storage), so on-device data without a cloud copy can disappear. The export button and the optional cloud copy are the backups.
 - **The write-behind window.** A crash or a killed tab in the 400 ms before a write can lose the last edit. The page flushes when it is hidden or closed; there is no flush on a power cut.
-- **Real-browser coverage is Chromium only.** The tests use a fake IndexedDB; Safari's behaviour (including on an installed iPhone app) has not been verified.
+- **Real-browser coverage is Chromium only.** The tests use a fake IndexedDB; Safari on an installed iPhone app has been used for real by the owner (sign-in, passphrase, encrypted sync all worked), but that is one device, not a test matrix.
 
 ## Cloud copy (optional): end-to-end encrypted
 
@@ -80,7 +80,7 @@ What is **not** protected, and the app says so:
 Rollout of the rules (the owner publishes them by hand, in order):
 
 1. **Phase 1** (the previous commit of `firestore.rules`, `plaintextAllowed()` returns true): accepts plaintext and encrypted documents, so a phone still running an older copy of the app keeps working. Publish it before the apps that encrypt go out. An account is migrated on its first sync after the update: the app asks for a passphrase, uploads everything sealed, reads it back, opens it, compares it, and only then removes the plaintext. If anything fails it keeps the plaintext and says so; an interrupted migration is finished by the next sync (tested with the connection cut at every Firestore call).
-2. **Phase 2** (the file in the repository now: one line, `plaintextAllowed()` returns false, labelled in the file; **not published**): only encrypted documents are accepted. Publish it only after every phone has updated and been migrated. An old copy of the app that still writes plaintext after phase 1 re-creates readable data until then; each updated phone seals and removes it on its next sync. After phase 2 an account that was never migrated cannot be migrated in place (the emulator test shows the error).
+2. **Phase 2** (the file in the repository now: one line, `plaintextAllowed()` returns false, labelled in the file; **published on 15 November 2026**, after the owner's account showed "Cifrado activado"): only encrypted documents are accepted. It is to be published only after every phone has updated and been migrated. An old copy of the app that still writes plaintext after phase 1 re-creates readable data until then; each updated phone seals and removes it on its next sync. After phase 2 an account that was never migrated cannot be migrated in place (the emulator test shows the error).
 
 ### Other protections of the cloud copy
 

@@ -73,9 +73,9 @@ Built in steps. This list only contains what exists.
 | 2 | Repository, PWA shell, design system, automatic deploy | Done |
 | 3a | Local-first app: profile and goals, daily log, food search, favourites, water, steps, progress, export | Done |
 | 3b | Security hardening and the security test suite | Done |
-| 3c | Google sign-in and cloud copy: built and tested with two simulated devices, sign-in verified up to Google's account page; a full sign-in with a real account is still to be exercised | Built, needs a real-account test |
+| 3c | Google sign-in and cloud copy: tested with two simulated devices and the Firestore emulator, and then used by its owner on a real iPhone with a real Google account: sign-in, passphrase, encrypted sync | Done; tested on one real account |
 | 4a | Camera-first `+` and barcode scanning with Open Food Facts | Built; tested with a simulated camera, real scanning on a phone still to be exercised |
-| 4b | Photo analysis with AI (Gemini through Firebase AI Logic; signed-in users; context screen when the photo does not show enough); nutrition label by the same path | Built; checked with a real plate photo through the real App Check and Gemini calls from localhost; the signed-in flow on a phone is still to be exercised |
+| 4b | Photo analysis with AI (Gemini through Firebase AI Logic; signed-in users; context screen when the photo does not show enough); nutrition label by the same path | Built; checked with a real plate photo through the real App Check and Gemini calls from localhost; the signed-in flow has been used on a real iPhone, which found two bugs (now fixed) |
 
 What works today, all on your device:
 
@@ -154,7 +154,7 @@ The service worker is off on localhost so you always get fresh files; add `?sw=1
 ## What I would not claim
 
 - Nutrition figures are estimates. USDA values describe typical US foods; a Spanish product can differ, and for some foods public databases disagree with each other by more than 25 % (mussels, Greek yogurt, tofu, mozzarella). Seven foods are my own estimates and say so in the data.
-- It has been exercised in desktop Chrome emulating a phone, in both themes. It has not been through a proper pass on real iOS and Android devices yet.
+- It has been exercised in desktop Chrome emulating a phone, in both themes. It has been used on one real iPhone (the installed app, signed in, with encryption on), which is how the two bugs above were found; it has not been through a proper pass on other iOS versions or on Android.
 - Photo estimation, when it arrives, will be an estimate too. That is the reason the slider exists.
 
 ## Credits
