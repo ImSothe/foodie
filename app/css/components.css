@@ -25,7 +25,7 @@
   place-items: center;
   flex: none;
 }
-.ring svg { grid-area: 1 / 1; transform: rotate(-90deg); }
+.ring > svg { grid-area: 1 / 1; transform: rotate(-90deg); }   /* the ring itself starts at 12 o'clock; an icon in the middle must not turn with it */
 .ring-track { fill: none; stroke: var(--track); }
 .ring-bar {
   fill: none;
@@ -100,6 +100,7 @@
 /* ---------- macros ---------- */
 .macros { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .macro { padding: 14px 14px 13px; border-radius: var(--r-lg); }
+.macro-icon { display: grid; color: var(--ring); }
 .macro-num { margin-top: 12px; font-size: 25px; font-weight: 700; line-height: 1; }
 .macro-label { margin-top: 4px; font-size: 13px; font-weight: 600; line-height: 1.25; }
 .macro-label .muted { font-weight: 400; }

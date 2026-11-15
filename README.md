@@ -82,7 +82,7 @@ What works today, all on your device:
 - **Onboarding:** sex, age, height, weight, activity and goal (lose, maintain, gain) give an editable daily plan: calories, protein, carbohydrate, fat and water (and steps, if you turn them on).
 - **Repeat, don't retype:** the search opens with "Repetir lo de ayer" and your recent meals, one tap each, and `+` opens in the camera mode you used last.
 - **Log a meal by search** from about 100 common foods, with typical portions and a grams slider, several foods per meal. Fix the grams later, duplicate the meal on another day, save it as a favourite, delete with undo.
-- **Home:** calories left, macros, water, steps (only if you follow them), and vitamins and minerals against reference values for your sex. A week strip you can move back through.
+- **Home:** calories left, macros (steak, pasta and oil icons), water, steps (only if you follow them), and vitamins and minerals against reference values for your sex. A week strip you can move back through.
 - **Progress:** a month calendar of the days you met your goal, average calories per week, weight history.
 - **Settings:** edit profile and goals (past days keep the goals they had), light and dark theme, export everything as JSON, delete it from the device.
 
@@ -107,7 +107,7 @@ Not there yet: reading labels reliably (not checked against real labels), and an
 This is the part I would look at first in someone else's repo, so it is the part I spent the most care on.
 
 ```bash
-npm test          # 460 tests, no dependencies, about a second
+npm test          # 462 tests, no dependencies, about a second
 npm run test:rules # firestore.rules against the real Firestore emulator (needs Java 21 and `npm ci --prefix tests/rules`)
 npm run coverage  # 98 % lines, 94 % branches overall (Node 22, as in CI); most of the pure core is at 100 % lines
 ```

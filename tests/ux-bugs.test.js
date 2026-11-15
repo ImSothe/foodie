@@ -108,3 +108,18 @@ test('the toast code keeps the host reachable: it moves into the open dialog and
   assert.match(src, /toastParent\(document\)/);
   assert.match(src, /document\.addEventListener\('close'[\s\S]{0,300}document\.body\.append\(toastHost\)[\s\S]{0,40}true\)/, 'on close (capture phase) the host returns to the body before the dialog is removed');
 });
+
+test('the ring turns only its own circle: an icon in the middle (the water drop) is not rotated with it', () => {
+  const css = readFileSync(fileURLToPath(new URL('../app/css/components.css', import.meta.url)), 'utf8');
+  assert.doesNotMatch(css, /\.ring\s+svg\s*\{[^}]*rotate/, '".ring svg" would also rotate the icon in .ring-center (the tilted drop)');
+  assert.match(css, /\.ring\s*>\s*svg\s*\{[^}]*rotate\(-90deg\)/);
+});
+
+test('every icon the Home screen names exists in the icon set', () => {
+  const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
+  const icons = read('../app/ui/icons.js');
+  const home = read('../app/ui/screens/home.js');
+  const names = [...home.matchAll(/icon: '([a-z]+)'/g)].map((m) => m[1]);
+  assert.deepEqual(names.sort(), ['meat', 'oil', 'pasta']);
+  for (const n of [...names, 'drop']) assert.match(icons, new RegExp(`\n  ${n}: [[]`), `icon "${n}" is drawn`);
+});
