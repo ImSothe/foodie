@@ -109,7 +109,7 @@ This is the part I would look at first in someone else's repo, so it is the part
 ```bash
 npm test          # 460 tests, no dependencies, about a second
 npm run test:rules # firestore.rules against the real Firestore emulator (needs Java 21 and `npm ci --prefix tests/rules`)
-npm run coverage  # 98 % lines, 89 % branches overall; most of the pure core is at 100 % lines
+npm run coverage  # 98 % lines, 94 % branches overall (Node 22, as in CI); most of the pure core is at 100 % lines
 ```
 
 - **Unit tests** for every pure module: nutrition maths, goals (worked examples by hand for a man and a woman, floors, monotonicity), dates across daylight-saving changes, search, progress, the store.
