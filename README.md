@@ -107,7 +107,7 @@ Not there yet: reading labels reliably (not checked against real labels), and an
 This is the part I would look at first in someone else's repo, so it is the part I spent the most care on.
 
 ```bash
-npm test          # 450 tests, no dependencies, about a second
+npm test          # 460 tests, no dependencies, about a second
 npm run test:rules # firestore.rules against the real Firestore emulator (needs Java 21 and `npm ci --prefix tests/rules`)
 npm run coverage  # 98 % lines, 89 % branches overall; most of the pure core is at 100 % lines
 ```
@@ -118,7 +118,7 @@ npm run coverage  # 98 % lines, 89 % branches overall; most of the pure core is 
 - **Static guards** that run in CI: the CSP stays closed, no inline code, no `innerHTML` or `eval`, the offline cache matches the published files, every workflow action is pinned to a commit hash, no secrets or personal data are tracked, storage keys stay in the app's own namespace.
 - **A real-browser check** with the same payloads seeded into storage and hostile URLs, repeatable with `tools/xss_fuzz_seed.js`.
 
-The review that led to this found real defects, each now covered by a test that fails without its fix: a crafted link (`#constructor`) that blanked the app, a meal id of `__proto__` that corrupted a stored day, invisible and text-reversing characters accepted in names, a DOM helper that would have set an inline handler if given a string, and no size limits on stored data.
+The review that led to this found real defects, each now covered by a test that fails without its fix: a crafted link (`#constructor`) that blanked the app, a meal id of `__proto__` that corrupted a stored day, invisible and text-reversing characters accepted in names, a DOM helper that would have set an inline handler if given a string, and no size limits on stored data. The first real-phone test found two more, now fixed and covered (`tests/ux-bugs.test.js`): the photo flow asked an already signed-in person to sign in (it decided before Firebase had restored the session; it now waits, and reports "offline" if it cannot check), and messages shown while a sheet or the camera was open were invisible (a modal dialog hides everything outside it; the message now lives inside the open dialog).
 
 [SECURITY.md](SECURITY.md) has the threat model, including what is **not** defended. The most important limit: GitHub Pages serves all of an account's projects from one origin, so the browser does not isolate this app's local data from sibling apps.
 
