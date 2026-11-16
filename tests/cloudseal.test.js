@@ -92,10 +92,15 @@ test('sealed documents open back to exactly the state that was sealed', async ()
 
 test('nothing readable is left in the stored documents: no names, no thumbnails, no numbers by name', async () => {
   const c = await ctx();
-  const text = strings(await sealedDocs(sampleState(), c));
+  // The ciphertext, IV and salt are random base64: a short word ("sex", 3 characters) shows up in them by chance about once in fifty runs, so they are
+  // checked apart and only for long secrets; everything else (keys, ids, structure) is checked for all of them.
+  const blobs = [];
+  const text = JSON.stringify(await sealedDocs(sampleState(), c), (k, v) => { if (k === 'iv' || k === 'ct' || k === 'salt') { blobs.push(v); return '·'; } return v; });
+  assert.ok(blobs.length > 5, 'the sealed blobs were found');
   for (const secret of ['Pollo secreto', 'Tarta de la abuela', 'Favorita secreta', 'ingrediente', 'QUJDQUJD', 'data:image', 'jpeg', '183.5', '81.5', 'heightCm', 'birthYear', 'weightKg',
     'per100', 'kcal', 'protein_g', 'grams', 'slot', '"name"', '"items"', 'sex', 'activity', '6420', '81.25', '81.75']) {
     assert.ok(!text.includes(secret), `"${secret}" is visible in the stored documents`);
+    if (secret.length >= 8) assert.ok(blobs.every((x) => !x.includes(secret)), `"${secret}" is visible inside a ciphertext`);
   }
   // what does stay in the clear, on purpose (SECURITY.md): ids, dates, stamps, sizes
   assert.ok(text.includes('"mealsE"') && text.includes('updatedAt') && text.includes(DAY));
