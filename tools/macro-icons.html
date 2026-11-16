@@ -1,0 +1,49 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>foodie · macro icons from the Gemini line art</title>
+<!-- Turns tools/macro-icons-source.jpg (three line icons drawn by Gemini; the "transparent" checkerboard is baked into the JPEG)
+     into three alpha-only PNG masks for app/icons/macro-*.png. The app paints them with CSS mask-image, so they take the colour of their
+     macro and work in light and dark. Run it with tools/make_macro_icons.mjs, or open this page from a local server and call window.build(). -->
+<img id="src" src="macro-icons-source.jpg" hidden>
+<script>
+// Where each icon sits in the 2752 x 1536 source (measured on the picture), as [x0, y0, x1, y1].
+const BOXES = { meat: [234, 475, 826, 1060], carbs: [1073, 475, 1679, 1060], fat: [1995, 480, 2490, 1055] };
+
+function mask(img) {
+  const W = img.naturalWidth, H = img.naturalHeight;
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(img, 0, 0);
+  const px = x.getImageData(0, 0, W, H); const d = px.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const r = d[i], g = d[i + 1], b = d[i + 2];
+    const lum = 0.299 * r + 0.587 * g + 0.114 * b; const sat = Math.max(r, g, b) - Math.min(r, g, b);
+    // the checkerboard is grey (about 92 and 158); the strokes are off-white (about 225); the accents are saturated
+    let a = Math.min(1, Math.max(0, (lum - 185) / 30));
+    if (sat > 50 && lum > 100) a = 1;
+    d[i] = d[i + 1] = d[i + 2] = 0; d[i + 3] = Math.round(a * 255);
+  }
+  x.putImageData(px, 0, 0);
+  return c;
+}
+
+// how much each line is thickened, in output pixels: the noodle bowl is the most intricate and stays thin
+const THICKEN = { meat: 1.5, carbs: 1, fat: 1.5 };
+
+window.build = function build({ size = 128, pad = 0.08 } = {}) {
+  const m = mask(document.getElementById('src'));
+  const out = {};
+  for (const [name, [x0, y0, x1, y1]] of Object.entries(BOXES)) {
+    const side = Math.max(x1 - x0, y1 - y0) * (1 + pad * 2);
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+    const c = document.createElement('canvas'); c.width = c.height = size;
+    const g = c.getContext('2d'); g.imageSmoothingQuality = 'high';
+    const thicken = THICKEN[name];
+    // thicken the line by stamping the mask a few pixels around itself (a small round dilation)
+    const offsets = [[0, 0]];
+    if (thicken > 0) for (let i = 0; i < 12; i++) offsets.push([Math.cos(i / 12 * 2 * Math.PI) * thicken, Math.sin(i / 12 * 2 * Math.PI) * thicken]);
+    for (const [dx, dy] of offsets) g.drawImage(m, cx - side / 2, cy - side / 2, side, side, dx, dy, size, size);
+    out[name] = c.toDataURL('image/png');
+  }
+  return out;
+};
+</script>

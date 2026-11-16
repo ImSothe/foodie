@@ -166,6 +166,7 @@ The service worker is off on localhost so you always get fresh files; add `?sw=1
 - Barcode reading: the `barcode-detector` ponyfill (MIT) and `zxing-wasm` (MIT), a build of ZXing-C++ (Apache-2.0), vendored in `app/vendor/lazy/` with their licences.
 - Reference intakes: Regulation (EU) No 1169/2011 and EFSA dietary reference values.
 - App icon: generated with Google's Gemini (a bitten burger with lettuce) and cropped by me; the source is `tools/icon-source.jpg`. It is an AI-generated image, so I make no copyright claim over it.
+- Macro icons on the home screen (drumstick, noodle bowl, avocado): line drawings generated with Gemini, cut out by `tools/macro-icons.html` into masks the app colours itself; the source is `tools/macro-icons-source.jpg`. AI-generated, so I make no copyright claim over them.
 - Typeface: [Bricolage Grotesque](https://github.com/ateliertriay/bricolage), SIL Open Font License 1.1.
 - Built with AI coding assistants. I set the goal, the constraints and the acceptance criteria, reviewed the output, and had it verified in a browser and by tests before anything was published.
 

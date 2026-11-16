@@ -10,9 +10,9 @@ import { microTargets } from '../../core/goals.js';
 import { dayTitle, addDays, isIso } from '../../core/dates.js';
 
 const MACROS = [
-  { key: 'protein_g', label: 'Proteína', cls: 'is-protein', color: 'var(--protein)', icon: 'meat' },
-  { key: 'carbs_g', label: 'Carbos', cls: 'is-carbs', color: 'var(--carbs)', icon: 'pasta' },
-  { key: 'fat_g', label: 'Grasa', cls: 'is-fat', color: 'var(--fat)', icon: 'oil' },
+  { key: 'protein_g', label: 'Proteína', cls: 'is-protein', color: 'var(--protein)', glyph: 'meat' },
+  { key: 'carbs_g', label: 'Carbos', cls: 'is-carbs', color: 'var(--carbs)', glyph: 'carbs' },
+  { key: 'fat_g', label: 'Grasa', cls: 'is-fat', color: 'var(--fat)', glyph: 'fat' },
 ];
 const SOURCE_ICON = { ai: 'camera', barcode: 'barcode', label: 'label', db: 'search', manual: 'search' };
 const MICRO_GROUPS = [['other', 'Fibra, azúcares y grasa saturada'], ['mineral', 'Minerales'], ['vitamin', 'Vitaminas']];
@@ -46,7 +46,7 @@ function macroCard(m, totals, goals, fresh) {
   const left = goals[m.key] - eaten;
   return h('section', { class: `card macro ${m.cls}`, 'aria-label': m.label },
     ring({ size: 52, stroke: 6, value: progress(eaten, goals[m.key]), color: m.color, animate: fresh,
-      label: `${fmtNum(eaten)} de ${fmtNum(goals[m.key])} g de ${m.label.toLowerCase()}`, center: h('span', { class: 'macro-icon' }, icon(m.icon, 24)) }),
+      label: `${fmtNum(eaten)} de ${fmtNum(goals[m.key])} g de ${m.label.toLowerCase()}`, center: h('span', { class: `macro-glyph is-${m.glyph}`, 'aria-hidden': 'true' }) }),
     h('p', { class: 'num macro-num' }, fmtNum(Math.abs(left)), h('span', { class: 'unit' }, ' g')),
     h('p', { class: 'macro-label' }, m.label, ' ', h('span', { class: 'muted' }, left < 0 ? 'de más' : 'restante')));
 }

@@ -115,11 +115,15 @@ test('the ring turns only its own circle: an icon in the middle (the water drop)
   assert.match(css, /\.ring\s*>\s*svg\s*\{[^}]*rotate\(-90deg\)/);
 });
 
-test('every icon the Home screen names exists in the icon set', () => {
+test('every food drawing the Home screen names exists as a file and has its CSS rule', () => {
   const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
-  const icons = read('../app/ui/icons.js');
   const home = read('../app/ui/screens/home.js');
-  const names = [...home.matchAll(/icon: '([a-z]+)'/g)].map((m) => m[1]);
-  assert.deepEqual(names.sort(), ['meat', 'oil', 'pasta']);
-  for (const n of [...names, 'drop']) assert.match(icons, new RegExp(`\n  ${n}: [[]`), `icon "${n}" is drawn`);
+  const css = read('../app/css/components.css');
+  const names = [...home.matchAll(/glyph: '([a-z]+)'/g)].map((m) => m[1]);
+  assert.deepEqual(names.sort(), ['carbs', 'fat', 'meat']);
+  for (const n of names) {
+    const png = readFileSync(fileURLToPath(new URL(`../app/icons/macro-${n}.png`, import.meta.url)));
+    assert.equal(png.subarray(1, 4).toString(), 'PNG', `macro-${n}.png is a PNG`);
+    assert.match(css, new RegExp(String.raw`\.macro-glyph\.is-${n}\s*\{[^}]*icons/macro-${n}\.png`), `CSS points .is-${n} at its file`);
+  }
 });

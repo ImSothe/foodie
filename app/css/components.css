@@ -100,7 +100,11 @@
 /* ---------- macros ---------- */
 .macros { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .macro { padding: 14px 14px 13px; border-radius: var(--r-lg); }
-.macro-icon { display: grid; color: var(--ring); }
+/* the food drawings (Gemini line art, tools/macro-icons.html) are alpha masks: they take the colour of their macro, in both themes */
+.macro-glyph { display: block; width: 28px; height: 28px; background: var(--ring); -webkit-mask: var(--glyph) center / contain no-repeat; mask: var(--glyph) center / contain no-repeat; }
+.macro-glyph.is-meat { --glyph: url('../icons/macro-meat.png'); }
+.macro-glyph.is-carbs { --glyph: url('../icons/macro-carbs.png'); }
+.macro-glyph.is-fat { --glyph: url('../icons/macro-fat.png'); }
 .macro-num { margin-top: 12px; font-size: 25px; font-weight: 700; line-height: 1; }
 .macro-label { margin-top: 4px; font-size: 13px; font-weight: 600; line-height: 1.25; }
 .macro-label .muted { font-weight: 400; }
