@@ -225,6 +225,11 @@ test('App Check hook: a custom initAppCheck replaces the default (the call path 
 test('classifyAiError: statuses, SDK codes and messages', () => {
   const c = (message, status, extra = {}) => classifyAiError(Object.assign(new Error(message), status ? { customErrorData: { status } } : {}, extra));
   assert.equal(c('x', 429), 'quota');
+  // the free AI's per-minute limit clears by itself, so it is its own reason; one that names the day (or both) stays a quota
+  assert.equal(c('Quota exceeded for metric GenerateRequestsPerMinutePerProjectPerModel-FreeTier, limit: 5', 429), 'rate');
+  assert.equal(c('You exceeded the requests per minute limit', 429), 'rate');
+  assert.equal(c('Quota exceeded: GenerateRequestsPerDayPerProjectPerModel-FreeTier', 429), 'quota');
+  assert.equal(c('limit: 5 per minute, 500 per day', 429), 'quota');
   assert.equal(c('RESOURCE_EXHAUSTED'), 'quota');
   assert.equal(c('Firebase App Check token is invalid', 401), 'app-check');
   assert.equal(c('x', 401), 'app-check');

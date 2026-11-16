@@ -13,7 +13,9 @@ import { confidenceWord, needsContextScreen, visionMeal, MAX_CONTEXT } from '../
 
 /** [title, text, retryable] for every reason an analysis can fail. */
 const PROBLEMS = {
-  quota: ['Se agotó el límite gratuito de hoy', 'El análisis de fotos es gratuito y tiene un límite diario compartido. Prueba mañana, o busca el alimento a mano.', false],
+  rate: ['Mucha gente usando la IA ahora mismo', 'La IA gratuita tiene un límite por minuto compartido entre todos. Espera un minuto y vuelve a intentarlo, o busca el alimento a mano.', true],
+  // Google does not always say which limit was hit, so this sentence covers both: the per-minute one clears at once, the daily one tomorrow.
+  quota: ['La IA está al límite ahora mismo', 'El análisis de fotos es gratuito y tiene límites compartidos por minuto y por día. Espera un minuto y reintenta; si sigue igual, prueba mañana o busca el alimento a mano.', true],
   offline: ['Sin conexión', 'Analizar una foto necesita internet. Puedes buscar el alimento a mano o escanear un código.', true],
   timeout: ['La IA tarda demasiado', 'No ha respondido a tiempo. Prueba otra vez.', true],
   busy: ['La IA está saturada ahora mismo', 'Prueba otra vez en un momento.', true],

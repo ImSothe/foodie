@@ -23,7 +23,7 @@ export const TIMEOUT_MS = 45000;
 export const COOLDOWN_MS = 3000;
 export const RETRY_DELAY_MS = 1500;
 
-/** @typedef {'signed-out'|'not-configured'|'busy-local'|'cooldown'|'bad-image'|'quota'|'app-check'|'offline'|'timeout'|'busy'|'blocked'|'bad-answer'|'daily-limit'|'error'} VisionProblem */
+/** @typedef {'signed-out'|'not-configured'|'busy-local'|'cooldown'|'bad-image'|'quota'|'rate'|'app-check'|'offline'|'timeout'|'busy'|'blocked'|'bad-answer'|'daily-limit'|'error'} VisionProblem */
 
 /** Why a call failed, as a reason the screen can act on. Reads the HTTP status, the SDK's error code and the message. */
 export function classifyAiError(e, { onLine = true } = {}) {
@@ -31,6 +31,9 @@ export function classifyAiError(e, { onLine = true } = {}) {
   const text = `${e && e.code ? e.code : ''} ${e && e.message ? e.message : ''}`;
   if (e && (e.name === 'TimeoutError' || e.code === 'timeout' || /timed? ?out|deadline/i.test(text))) return 'timeout';
   if (/app ?check/i.test(text) || (status === 401)) return 'app-check';
+  // The free AI has a limit per minute (shared by every user of the project) and another per day. Google names the metric in the message
+  // ("...PerMinute...", "...PerDay..."): a per-minute one clears by itself in a minute, so it is its own reason with its own sentence.
+  if ((status === 429 || /quota|resource[_ ]exhausted|rate ?limit|too many requests/i.test(text)) && /per[ _-]?minute|requests? per minute|\brpm\b/i.test(text) && !/per[ _-]?day/i.test(text)) return 'rate';
   if (status === 429 || /quota|resource[_ ]exhausted|rate ?limit|too many requests/i.test(text)) return 'quota';
   if (!onLine) return 'offline';
   // The SDK reports an HTTP error as "fetch-error" too: a status means the server answered, so it is not an offline problem.
