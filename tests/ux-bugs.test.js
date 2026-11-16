@@ -127,3 +127,12 @@ test('every food drawing the Home screen names exists as a file and has its CSS 
     assert.match(css, new RegExp(String.raw`\.macro-glyph\.is-${n}\s*\{[^}]*icons/macro-${n}\.png`), `CSS points .is-${n} at its file`);
   }
 });
+
+test('the result screen offers "Corregir" at the top, before the numbers it changes, and it reaches the context screen in correcting mode', () => {
+  const src = readFileSync(fileURLToPath(new URL('../app/ui/screens/photo.js', import.meta.url)), 'utf8');
+  const button = src.indexOf("photo-correct");
+  assert.ok(button > 0, 'the button exists');
+  assert.ok(button < src.indexOf('mealEditor(draft'), 'it comes before the editable list');
+  assert.match(src, /contextScreen\(result, \{ correcting: true \}\)/);
+  assert.match(src, /correct: \['¿Qué lleva realmente\?'/);
+});

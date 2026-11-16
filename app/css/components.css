@@ -890,6 +890,7 @@ span.cam-side { background: none; }
 .photo-title .input { min-height: 48px; font-size: 17px; }
 .photo-confidence { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: var(--ink-2); }
 .photo-confidence.is-low { color: var(--warn); }
+.photo-correct { min-height: 46px; margin: 4px 0 10px; font-size: 15px; }
 .photo-warn { color: var(--warn); font-weight: 600; }
 
 /* one-tap repeats at the top of the search */
