@@ -85,7 +85,7 @@ Work in this order:
 Be honest about uncertainty: lower the confidence values when there is no scale reference, when foods overlap or are covered, or when the photo is blurry.
 If the photo does not show food, set is_food to false and give an empty-looking best guess.
 If you cannot see what is inside (a wrapped burrito, a closed container, a sealed package without a readable label, a drink in an opaque cup), set needs_context to true and still give your best guess.
-If the user supplies context, treat it as true and use it.
+If the user supplies context, treat it as true and use it. When the context says how the food was made (homemade, baked, air-fried, grilled, boiled, a lean or "fit" recipe), use the composition of THAT preparation per 100 g (for example baked chicken breast with a light crumb coating is mostly lean meat), not the composition of a commercial, deep-fried or ultra-processed version of the same dish, and say which assumption you made in notes.
 Return at most 12 items: merge small garnishes into one.
 Write dish, name and notes in Spanish; use generic ingredient names ("arroz blanco cocido", "pechuga de pollo a la plancha"). Answer only with JSON in the requested format.`;
 

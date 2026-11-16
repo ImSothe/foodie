@@ -28,6 +28,8 @@ const CONTEXT_COPY = {
   'not-food': ['No parece que haya comida', 'No hemos visto comida en la foto. Cuéntanos qué es y lo calculamos.'],
   'needs-context': ['No se ve qué lleva', 'Dentro no se ve qué hay. Cuéntanos qué es o qué lleva para calcularlo bien.'],
   'low-confidence': ['No estamos muy seguros', 'La foto no deja ver bien el plato. Si nos cuentas qué es, la estimación mejora.'],
+  // the person asked for it after seeing a result: the photo was understood, the preparation or the ingredients were not
+  correct: ['¿Qué lleva realmente?', 'Cuéntanos cómo está hecho y de qué es: si es casero, al horno o a la plancha, o qué ingredientes lleva. Volvemos a calcular con eso.'],
 };
 
 /**
@@ -89,10 +91,10 @@ export function openPhoto({ store, day, cloud, vision, picture, label = false, o
       h('div', { class: 'sheet-actions' }, h('button', { type: 'button', class: 'btn btn-quiet', onClick: () => sheet.close() }, 'Cancelar')));
   }
 
-  function contextScreen(result) {
-    const kind = !result.isFood ? 'not-food' : result.needsContext ? 'needs-context' : 'low-confidence';
+  function contextScreen(result, { correcting = false } = {}) {
+    const kind = correcting ? 'correct' : !result.isFood ? 'not-food' : result.needsContext ? 'needs-context' : 'low-confidence';
     const [title, text] = CONTEXT_COPY[kind];
-    const input = h('input', { type: 'text', class: 'input text-input', id: 'photo-context', maxlength: MAX_CONTEXT, placeholder: 'Ej.: burrito de pollo con arroz', autocomplete: 'off' });
+    const input = h('input', { type: 'text', class: 'input text-input', id: 'photo-context', maxlength: MAX_CONTEXT, placeholder: correcting ? 'Ej.: pechuga de pollo casera al horno con corn flakes' : 'Ej.: burrito de pollo con arroz', autocomplete: 'off' });
     const error = h('p', { class: 'field-error small', 'aria-live': 'polite' });
     const calc = () => {
       const text = input.value.trim();
@@ -108,7 +110,8 @@ export function openPhoto({ store, day, cloud, vision, picture, label = false, o
         h('div', { class: 'field' }, h('label', { class: 'field-label', for: 'photo-context' }, '¿Qué es o qué lleva?'), input, error)),
       h('div', { class: 'sheet-actions' },
         h('button', { type: 'button', class: 'btn btn-primary', onClick: calc }, 'Calcular con este contexto'),
-        result.isFood && result.items.length ? h('button', { type: 'button', class: 'btn btn-quiet', onClick: () => resultScreen(result) }, 'Usar la estimación tal cual') : searchBtn()));
+        correcting ? h('button', { type: 'button', class: 'btn btn-quiet', onClick: () => resultScreen(result) }, 'Volver al resultado')
+          : result.isFood && result.items.length ? h('button', { type: 'button', class: 'btn btn-quiet', onClick: () => resultScreen(result) }, 'Usar la estimación tal cual') : searchBtn()));
     input.focus();
   }
 
@@ -135,7 +138,9 @@ export function openPhoto({ store, day, cloud, vision, picture, label = false, o
       draft.items.some((it) => it.hidden) ? h('p', { class: 'small muted' }, 'Lo marcado como estimado (aceite, salsa) no se ve en la foto pero suele llevarlo.') : null,
       doubtful.length ? h('p', { class: 'small photo-warn' }, `Revisa ${doubtful.map((d) => d.name).join(', ')}: las calorías no cuadran del todo con los macros.`) : null,
       slot.el,
-      h('div', { class: 'sheet-actions' }, add, h('button', { type: 'button', class: 'btn btn-quiet', onClick: () => sheet.close() }, 'Cancelar')));
+      h('div', { class: 'sheet-actions' }, add,
+        h('button', { type: 'button', class: 'btn btn-secondary', onClick: () => contextScreen(result, { correcting: true }) }, icon('label', 20), 'Corregir con contexto'),
+        h('button', { type: 'button', class: 'btn btn-quiet', onClick: () => sheet.close() }, 'Cancelar')));
   }
 
   // ---------- the flow ----------

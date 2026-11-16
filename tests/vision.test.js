@@ -235,3 +235,10 @@ test('parseVision: fuzzed answers (wrong types, huge numbers, hostile keys, trap
   protoClean();
   for (const k of HOSTILE_KEYS) assert.equal(({})[k] === undefined || typeof ({})[k] === 'function' || k === '__proto__', true);
 });
+
+test('the prompt tells the model to use the composition of the stated preparation, not a commercial or fried one', () => {
+  const { system, user } = buildVisionPrompt({ context: 'pechuga casera al horno' });
+  assert.match(system, /homemade, baked, air-fried/);
+  assert.match(system, /not the composition of a commercial, deep-fried or ultra-processed version/);
+  assert.match(user, /pechuga casera al horno/);
+});
